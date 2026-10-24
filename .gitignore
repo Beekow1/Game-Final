@@ -1,4 +1,6 @@
+.vscode
 objs/
+dist/sprites
 dist/README-SDL.txt
 dist/README-glm.txt
 dist/README-libpng.txt

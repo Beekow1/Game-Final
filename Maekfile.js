@@ -127,6 +127,10 @@ if (maek.OS === 'windows') {
 	copies.push( maek.COPY(`${NEST_LIBS}/SDL3/dist/SDL3.dll`, `scenes/SDL3.dll`) );
 }
 
+const sprite_names = [ 'test-character' ]; // TODO: replace with the actual character or other sprite names
+const sprites = sprite_names.map(name => maek.COPY(`sprites/${name}.png`, `dist/sprites/${name}.png`));
+
+
 //call rules on the maek object to specify tasks.
 // rules generally look like:
 //  output = maek.RULE_NAME(input [, output] [, {options}])
@@ -139,10 +143,13 @@ const game_names = [
 	maek.CPP('PlayMode.cpp'),
 	maek.CPP('main.cpp'),
 	maek.CPP('LitColorTextureProgram.cpp'),
-	//maek.CPP('ColorTextureProgram.cpp'),  //not used right now, but you might want it
+	maek.CPP('ColorTextureProgram.cpp'),
 	maek.CPP('Sound.cpp'),
 	maek.CPP('load_wav.cpp'),
-	maek.CPP('load_opus.cpp')
+	maek.CPP('load_opus.cpp'),
+	maek.CPP('SpriteSheet.cpp'),
+	maek.CPP('DrawSprites.cpp'),
+	maek.CPP('SpriteAnimator.cpp'),
 ];
 
 const common_names = [
@@ -181,7 +188,7 @@ const show_meshes_exe = maek.LINK([...show_meshes_names, ...common_names], 'scen
 const show_scene_exe = maek.LINK([...show_scene_names, ...common_names], 'scenes/show-scene');
 
 //set the default target to the game (and copy the readme files):
-maek.TARGETS = [game_exe, show_meshes_exe, show_scene_exe, ...copies];
+maek.TARGETS = [game_exe, show_meshes_exe, show_scene_exe, ...copies, ...sprites];
 
 //Note that tasks that produce ':abstract targets' are never cached.
 // This is similar to how .PHONY targets behave in make.

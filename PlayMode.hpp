@@ -3,6 +3,8 @@
 #include "Scene.hpp"
 #include "Sound.hpp"
 
+#include "SpriteAnimator.hpp"
+
 #include <glm/glm.hpp>
 
 #include <vector>
@@ -27,6 +29,11 @@ struct PlayMode : Mode {
 
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
+
+	//2D Test
+	SpriteAnimator idle_anim; 
+	SpriteAnimator walk_anim;
+	glm::vec2 view_center = glm::vec2(0.0f);
 
 	//hexapod leg to wobble:
 	Scene::Transform *hip = nullptr;
