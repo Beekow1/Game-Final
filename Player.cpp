@@ -33,6 +33,7 @@ void Player::updatePlayer(float elapsed)
     else
     {
         move_lock = 1.0f;
+        is_dashing = false;
     }
 
     attemptJump();
@@ -43,6 +44,11 @@ void Player::updatePlayer(float elapsed)
     
     
     transform->position += glm::vec3(velocity, 0.0f) * elapsed;
+
+    if (velocity.y < -max_fall_speed)
+    {
+        velocity.y = -max_fall_speed;
+    }
 }
 
 void Player::attemptJump()
@@ -51,9 +57,22 @@ void Player::attemptJump()
 
     if (can_jump && jump_not_wasted)
     {
+
         jump_not_wasted = false;
         jump_buffer_timer = 0.0f;
         coyote_timer = 0.0f;
+
+        if ((latest_dash_dir.y < 0.0f) && is_dashing)
+        {
+            //magic nmbrs sry
+            std::cout << "WAVE DASH " << std::endl;
+            velocity.x *= 1.7f;
+            velocity.y = jump_force * 0.7f;
+            jump_state = JumpState::Jumping;
+            lockMovement(0.4f);
+            return;
+        }
+
         velocity.y = jump_force;
         jump_state = JumpState::Jumping;
     }
@@ -73,8 +92,10 @@ void Player::jumpArc()
 
 void Player::dash(glm::vec2 input_dir)
 {
+    if (cur_dash_count <= 0) { return; }
+
     glm::vec2 dash_dir;
-    if (input_dir.length() < 1e-3)
+    if (glm::length(input_dir) < 1e-3)
     {
         dash_dir = glm::vec2(1.0f, 0.0f);
     }
@@ -83,11 +104,17 @@ void Player::dash(glm::vec2 input_dir)
         dash_dir = glm::normalize(input_dir);
     }
 
+    is_dashing = true;
     lockMovement(0.3f);
+
+    cur_dash_count--;
+
+    if (is_grounded) { cur_dash_count++; }
 
     velocity = glm::vec2(0.0f);
     jump_state = JumpState::Jumping;
     velocity += dash_dir * dash_force;
+    latest_dash_dir = dash_dir;
 }
 
 void Player::applyPlayerGravity(float elapsed)
@@ -113,7 +140,7 @@ void Player::applyPlayerGravity(float elapsed)
 
 void Player::attemptJumpCut()
 {
-    if (velocity.y > 0.0f && jump_state == JumpState::Jumping)
+    if (velocity.y > 0.0f && jump_state == JumpState::Jumping && !is_dashing)
     {
         velocity.y *= jump_cut_mult;
         jump_state = JumpState::Falling;
@@ -155,6 +182,7 @@ void runCollision(Player& player, const std::vector<Collider>& col_list)
                 player.is_grounded = true;
                 player.jump_state = JumpState::Grounded;
                 player.coyote_timer = player.coyote_duration;
+                player.cur_dash_count = player.max_dash_count;
 
                 if (player.velocity.y < 0.0f)
                 {
