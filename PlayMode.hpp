@@ -4,6 +4,7 @@
 #include "Sound.hpp"
 
 #include "Player.hpp"
+#include "SpriteAnimator.hpp"
 
 #include <glm/glm.hpp>
 
@@ -34,6 +35,10 @@ struct PlayMode : Mode {
 	Collider floor;
 
 	std::vector<Collider> colliders;
+	//2D Test
+	SpriteAnimator idle_anim; 
+	SpriteAnimator walk_anim;
+	glm::vec2 view_center = glm::vec2(0.0f);
 
 	//hexapod leg to wobble:
 	Scene::Transform *hip = nullptr;
