@@ -3,6 +3,8 @@
 #include "Scene.hpp"
 #include "Sound.hpp"
 
+#include "Player.hpp"
+
 #include <glm/glm.hpp>
 
 #include <vector>
@@ -23,19 +25,28 @@ struct PlayMode : Mode {
 	struct Button {
 		uint8_t downs = 0;
 		uint8_t pressed = 0;
-	} left, right, down, up;
+	} left, right, down, up, J;
 
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
+
+	Player player;
+	Collider floor;
+
+	std::vector<Collider> colliders;
 
 	//hexapod leg to wobble:
 	Scene::Transform *hip = nullptr;
 	Scene::Transform *upper_leg = nullptr;
 	Scene::Transform *lower_leg = nullptr;
+	Scene::Transform *floor_transform = nullptr;
+
 	glm::quat hip_base_rotation;
 	glm::quat upper_leg_base_rotation;
 	glm::quat lower_leg_base_rotation;
 	float wobble = 0.0f;
+
+	glm::vec2 input_dir = glm::vec2(0.0f);
 
 	glm::vec3 get_leg_tip_position();
 

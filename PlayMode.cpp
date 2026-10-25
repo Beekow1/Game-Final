@@ -47,6 +47,32 @@ Load< Sound::Sample > honk_sample(LoadTagDefault, []() -> Sound::Sample const * 
 
 
 PlayMode::PlayMode() : scene(*hexapod_scene) {
+
+	colliders.reserve(10);
+
+	scene.transforms.emplace_back();
+	Scene::Transform *player_transform = &scene.transforms.back();
+
+	player_transform->position = glm::vec3(0.0f, 0.0f, 0.0f);
+	player.transform = player_transform;
+	player.collider.transform = player_transform;
+	
+	player.collider.local_aabb.min = glm::vec3(-0.5f, -0.5f, -0.5f);
+    player.collider.local_aabb.max = glm::vec3(0.5f, 0.5f, 0.5f);
+
+	colliders.emplace_back(player.collider);
+
+	floor.local_aabb.min = glm::vec3(-10.0f, -3.0f, 0.0f);
+    floor.local_aabb.max = glm::vec3(10.0f, 3.0f, 0.0f);
+
+	scene.transforms.emplace_back();
+	floor_transform = &scene.transforms.back();
+
+	floor_transform->position = glm::vec3(0.0f, -6.0f, 0.0f);
+	floor.transform = floor_transform;
+
+	colliders.emplace_back(floor);
+
 	//get pointers to leg for convenience:
 	for (auto &transform : scene.transforms) {
 		if (transform.name == "Hip.FL") hip = &transform;
@@ -82,55 +108,66 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 		} else if (evt.key.key == SDLK_A) {
 			left.downs += 1;
 			left.pressed = true;
+			input_dir += glm::vec2(-1.0f, 0.0f);
 			return true;
 		} else if (evt.key.key == SDLK_D) {
 			right.downs += 1;
 			right.pressed = true;
+			input_dir += glm::vec2(1.0f, 0.0f);
 			return true;
 		} else if (evt.key.key == SDLK_W) {
 			up.downs += 1;
 			up.pressed = true;
+			input_dir += glm::vec2(0.0f, 1.0f);
 			return true;
 		} else if (evt.key.key == SDLK_S) {
 			down.downs += 1;
 			down.pressed = true;
+			input_dir += glm::vec2(0.0f, -1.0f);
+			return true;
+		} else if (evt.key.key == SDLK_J) {
+			J.downs += 1;
+			J.pressed = true;
+			player.dash(input_dir);
 			return true;
 		} else if (evt.key.key == SDLK_SPACE) {
-			if (honk_oneshot) honk_oneshot->stop();
-			honk_oneshot = Sound::play_3D(*honk_sample, 0.3f, glm::vec3(4.6f, -7.8f, 6.9f)); //hardcoded position of front of car, from blender
+			player.jump_not_wasted = true;
+			player.jump_buffer_timer = player.jump_buffer_duration;
+			//if (honk_oneshot) honk_oneshot->stop();
+			//honk_oneshot = Sound::play_3D(*honk_sample, 0.3f, glm::vec3(4.6f, -7.8f, 6.9f)); //hardcoded position of front of car, from blender
 		}
 	} else if (evt.type == SDL_EVENT_KEY_UP) {
 		if (evt.key.key == SDLK_A) {
 			left.pressed = false;
+			input_dir -= glm::vec2(-1.0f, 0.0f);
 			return true;
 		} else if (evt.key.key == SDLK_D) {
 			right.pressed = false;
+			input_dir -= glm::vec2(1.0f, 0.0f);
 			return true;
 		} else if (evt.key.key == SDLK_W) {
 			up.pressed = false;
+			input_dir -= glm::vec2(0.0f, 1.0f);
 			return true;
 		} else if (evt.key.key == SDLK_S) {
 			down.pressed = false;
+			input_dir -= glm::vec2(0.0f, -1.0f);
+			return true;
+		} else if (evt.key.key == SDLK_J) {
+			J.pressed = false;
+			return true;
+		} else if (evt.key.key == SDLK_SPACE) {
+			player.jump_not_wasted = false;
+			player.attemptJumpCut();
 			return true;
 		}
 	} else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
 		if (SDL_GetWindowRelativeMouseMode(Mode::window) == false) {
-			SDL_SetWindowRelativeMouseMode(Mode::window, true);
+			//SDL_SetWindowRelativeMouseMode(Mode::window, true);
 			return true;
 		}
 	} else if (evt.type == SDL_EVENT_MOUSE_MOTION) {
-		if (SDL_GetWindowRelativeMouseMode(Mode::window) == true) {
-			glm::vec2 motion = glm::vec2(
-				evt.motion.xrel / float(window_size.y),
-				-evt.motion.yrel / float(window_size.y)
-			);
-			camera->transform->rotation = glm::normalize(
-				camera->transform->rotation
-				* glm::angleAxis(-motion.x * camera->fovy, glm::vec3(0.0f, 1.0f, 0.0f))
-				* glm::angleAxis(motion.y * camera->fovy, glm::vec3(1.0f, 0.0f, 0.0f))
-			);
-			return true;
-		}
+		return true;
 	}
 
 	return false;
@@ -140,45 +177,14 @@ void PlayMode::update(float elapsed) {
 
 	//slowly rotates through [0,1):
 	wobble += elapsed / 10.0f;
-	wobble -= std::floor(wobble);
+	wobble -= std::floor(wobble); 
 
-	hip->rotation = hip_base_rotation * glm::angleAxis(
-		glm::radians(5.0f * std::sin(wobble * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 1.0f, 0.0f)
-	);
-	upper_leg->rotation = upper_leg_base_rotation * glm::angleAxis(
-		glm::radians(7.0f * std::sin(wobble * 2.0f * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);
-	lower_leg->rotation = lower_leg_base_rotation * glm::angleAxis(
-		glm::radians(10.0f * std::sin(wobble * 3.0f * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);
+	player.jump_buffer_timer -= elapsed;
+
+	if (!player.is_grounded) { player.coyote_timer -= elapsed; }
 
 	//move sound to follow leg tip position:
 	leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
-
-	//move camera:
-	{
-
-		//combine inputs into a move:
-		constexpr float PlayerSpeed = 30.0f;
-		glm::vec2 move = glm::vec2(0.0f);
-		if (left.pressed && !right.pressed) move.x =-1.0f;
-		if (!left.pressed && right.pressed) move.x = 1.0f;
-		if (down.pressed && !up.pressed) move.y =-1.0f;
-		if (!down.pressed && up.pressed) move.y = 1.0f;
-
-		//make it so that moving diagonally doesn't go faster:
-		if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
-
-		glm::mat4x3 frame = camera->transform->make_parent_from_local();
-		glm::vec3 frame_right = frame[0];
-		//glm::vec3 up = frame[1];
-		glm::vec3 frame_forward = -frame[2];
-
-		camera->transform->position += move.x * frame_right + move.y * frame_forward;
-	}
 
 	{ //update listener to camera position:
 		glm::mat4x3 frame = camera->transform->make_parent_from_local();
@@ -186,6 +192,12 @@ void PlayMode::update(float elapsed) {
 		glm::vec3 frame_at = frame[3];
 		Sound::listener.set_position_right(frame_at, frame_right, 1.0f / 60.0f);
 	}
+
+	player.move(input_dir, elapsed);
+
+	player.updatePlayer(elapsed);
+
+	runCollision(player, colliders);
 
 	//reset button press counters:
 	left.downs = 0;
@@ -235,6 +247,33 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 			glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
 			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 			glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+	}
+
+	{
+		glDisable(GL_DEPTH_TEST);
+		float aspect = float(drawable_size.x) / float(drawable_size.y);
+		float zoom = 10.0f;
+
+		glm::mat4 world_to_clip = glm::ortho(-aspect * zoom, aspect * zoom, -zoom, zoom, 0.0f, 1.0f);
+
+		DrawLines lines(world_to_clip);
+
+		AABB world_floor_aabb = floor.getWorldSpaceAABB();
+        glm::vec3 floor_center = (world_floor_aabb.min + world_floor_aabb.max) * 0.5f;
+        glm::vec3 floor_extents = (world_floor_aabb.max - world_floor_aabb.min) * 0.5f;
+        glm::mat4x3 floor_draw_transform = glm::translate(glm::mat4(1.0f), floor_center) 
+                                         * glm::scale(glm::mat4(1.0f), floor_extents);
+        lines.draw_box(floor_draw_transform, glm::u8vec4(255, 0, 0, 255));
+
+
+		AABB world_player_aabb = player.collider.getWorldSpaceAABB();
+        glm::vec3 player_center = (world_player_aabb.min + world_player_aabb.max) * 0.5f;
+        glm::vec3 player_extents = (world_player_aabb.max - world_player_aabb.min) * 0.5f;
+
+		glm::mat4x3 player_draw_transform = glm::translate(glm::mat4(1.0f), player_center) 
+                                          * glm::scale(glm::mat4(1.0f), player_extents);
+                                          
+        lines.draw_box(player_draw_transform, glm::u8vec4(0, 255, 0, 255));
 	}
 	GL_ERRORS();
 }
