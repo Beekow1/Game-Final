@@ -4,6 +4,8 @@
 #include "Sound.hpp"
 
 #include "Player.hpp"
+#include "Enemy.hpp"
+
 #include "SpriteAnimator.hpp"
 
 #include <glm/glm.hpp>
@@ -32,6 +34,9 @@ struct PlayMode : Mode {
 	Scene scene;
 
 	Player player;
+	
+	std::vector<std::unique_ptr<Enemy>> enemies;
+
 	Collider floor;
 
 	std::vector<Collider> colliders;

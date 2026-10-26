@@ -3,7 +3,8 @@
 #include "Scene.hpp"
 #include <iostream>
 
-enum class JumpState{
+enum class JumpState
+{
     Grounded,
     Jumping,
     Apex,
@@ -20,8 +21,8 @@ struct Player
     float max_fall_speed = 35.0f;
 
     float run_speed = 15.0f;
-    float run_acceleration = 12.0f;
-    float run_deceleration = 15.0f;
+    float run_acceleration = 166.67f;
+    float run_deceleration = 66.67f;
     float turn_around_mult = 1.6f;
 
     float jump_force = 30.0f;
@@ -30,12 +31,32 @@ struct Player
 
     float jump_buffer_duration = 0.25f;
     float coyote_duration = 0.1f;
-    
+
     float dash_force = 40.0f;
     size_t max_dash_count = 1;
 
+    int dash_damage = 25;
+    float dash_bounce_speed = 20.0f;
+    float dash_bounce_lift = 15.0f;
+    float dash_bounce_control_time = 0.35f;
+    float dash_duration = 0.15f;
+    float dash_end_speed = 26.67f;
+    
+    float wavedash_speed = 24.0f;
+
     float move_lock = 1.0f;
 
+    // combat
+    int health = 100;
+    float i_frame_time = 0.6f;
+    float i_timer = 0.0f;
+
+    float dash_attack_grace = 0.15f;
+
+    float hit_knockback_speed = 24.0f;
+    float hurt_knockback_bounce = 18.0f;
+
+    float damage_control_lock = 0.35f;
     // states
     glm::vec2 velocity = glm::vec2(0.0f);
     glm::vec2 latest_dash_dir = glm::vec2(0.0f);
@@ -52,7 +73,6 @@ struct Player
     float elapsed_move_lock_timer = 0.0f;
     float move_lock_time = 0.0f;
 
-    
     void move(glm::vec2 input_dir, float elapsed);
 
     void updatePlayer(float elapsed);
@@ -67,6 +87,9 @@ struct Player
     void attemptJumpCut();
 
     void dash(glm::vec2 input_dir);
+
+    bool takeDamage(int amount, glm::vec2 damage_source);
+    void dashBounce();
 };
 
-void runCollision(Player& player, const std::vector<Collider>& col_list);
+void runCollision(Player &player, const std::vector<Collider> &col_list);

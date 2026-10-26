@@ -152,6 +152,8 @@ const game_names = [
 	maek.CPP('SpriteSheet.cpp'),
 	maek.CPP('DrawSprites.cpp'),
 	maek.CPP('SpriteAnimator.cpp'),
+	maek.CPP('Enemy.cpp'),
+	maek.CPP('DummyEnemy.cpp'),
 ];
 
 const common_names = [
