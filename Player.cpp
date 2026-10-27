@@ -8,6 +8,12 @@ void Player::move(glm::vec2 input_dir, float elapsed)
     {
         return;
     }
+    
+    if(input_dir.x != 0.0f)
+    {
+        last_move = input_dir.x;
+    }
+
     float target_speed = input_dir.x * run_speed;
 
     bool extra_speed = std::abs(velocity.x) > run_speed && velocity.x * input_dir.x > 0.0f;
@@ -124,7 +130,7 @@ void Player::dash(glm::vec2 input_dir)
     glm::vec2 dash_dir;
     if (glm::length(input_dir) < 1e-3)
     {
-        dash_dir = glm::vec2(1.0f, 0.0f);
+        dash_dir = glm::vec2(last_move, 0.0f);
     }
     else
     {
@@ -163,7 +169,7 @@ void Player::applyPlayerGravity(float elapsed)
         current_gravity_mult = 6.0f;
         break;
     case JumpState::Falling:
-        current_gravity_mult = 18.0f;
+        current_gravity_mult = 12.0f;
         break;
     }
     velocity.y -= base_gravity * current_gravity_mult * elapsed;
