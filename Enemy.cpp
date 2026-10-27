@@ -2,7 +2,8 @@
 
 #include <algorithm>
 
-Enemy::Enemy(EnemyType enemy_type, glm::vec2 enemy_position) : enemyType(enemy_type)
+Enemy::Enemy(EnemyType enemy_type, glm::vec2 enemy_position, SpriteSheet const &sheet)
+    : enemyType(enemy_type), anim(sheet, "Idle")
 {
     transform.position = glm::vec3(enemy_position, 0.0f);
 
@@ -61,6 +62,8 @@ void Enemy::update(float dt, const std::vector<Collider> &col_list)
             velocity.y = 0.0f;
         }
     }
+    if (anim.finished) anim.play("Idle");
+    anim.update(dt);
 }
 
 void Enemy::setBehaviorState(EnemyState new_state)
@@ -82,6 +85,8 @@ void Enemy::takeDamage(int amount)
         return;
 
     health -= amount;
+    anim.play("Hurt", true); 
+
 
     if (health <= 0)
     {

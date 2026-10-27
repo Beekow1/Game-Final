@@ -23,14 +23,28 @@ Load<Sound::Sample> dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample con
 Load<Sound::Sample> honk_sample(LoadTagDefault, []() -> Sound::Sample const *
 								{ return new Sound::Sample(data_path("honk.wav")); });
 
-Load<SpriteSheet> test_character_sheet(LoadTagDefault, []() -> SpriteSheet const *
-									   { return new SpriteSheet(data_path("sprites/test-character.png"), SpriteSheet::Info{
-																											 .cell_size = glm::uvec2(16, 24),
-																											 .rows = {
-																												 {"idle", 2, 4.0f, true},
-																												 {"walk", 4, 10.0f, true},
-																											 },
-																										 }); });
+Load<SpriteSheet> main_character_sheet(LoadTagDefault, []() -> SpriteSheet const * {
+	return new SpriteSheet(data_path("sprites/main-character.png"), SpriteSheet::Info{
+		.cell_size = glm::uvec2(48, 24),
+		.rows = { 
+			{"Walk",      8,  8.0f, true },
+			{"Idle",      10, 8.0f, true },
+			{"Jump",      3,  8.0f, false}, 
+			{"Falling",   4,  8.0f, true },
+			{"Walk2Idle", 1,  8.0f, false}, //transition, then switch to Idle
+		},
+	});
+});
+
+Load<SpriteSheet> dummy_sheet(LoadTagDefault, []() -> SpriteSheet const * {
+	return new SpriteSheet(data_path("sprites/Dummy.png"), SpriteSheet::Info{
+		.cell_size = glm::uvec2(24, 48),
+		.rows = {
+			{"Idle", 1, 10.0f, true },
+			{"Hurt", 5, 10.0f, false},
+		},
+	});
+});
 
 static SpriteSheet *load_static_image(std::string const &file_path, glm::uvec2 size)
 {
@@ -55,8 +69,7 @@ Load<SpriteSheet> barrels_sheet(LoadTagDefault, []() -> SpriteSheet const *
 Load<SpriteSheet> shelf_sheet(LoadTagDefault, []() -> SpriteSheet const *
 							  { return load_static_image("Bottle Shelf.png", glm::uvec2(64, 80)); });
 
-PlayMode::PlayMode() : idle_anim(*test_character_sheet, "idle"),
-					   walk_anim(*test_character_sheet, "walk")
+PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 {
 	colliders.reserve(10);
 
@@ -92,7 +105,7 @@ PlayMode::PlayMode() : idle_anim(*test_character_sheet, "idle"),
 	addLevelSprite(*shelf_sheet, glm::vec2(122.0f, 134.0f), false);
 	addLevelSprite(*barrels_sheet, glm::vec2(265.0f, 134.0f), false);
 
-	enemies.emplace_back(std::make_unique<DummyEnemy>(glm::vec2(320.0f, 166.0f) / PPU));
+	enemies.emplace_back(std::make_unique<DummyEnemy>(glm::vec2(320.0f, 166.0f) / PPU, *dummy_sheet));
 
 	// Create low res framebuffer for rendering
 	glGenTextures(1, &color_texture);
@@ -266,15 +279,32 @@ void PlayMode::update(float elapsed)
 
 	runCollision(player, colliders);
 
+	if (input_dir.x < 0.0f) facing_left = true; 
+	else if (input_dir.x > 0.0f) facing_left = false; 
+
+	// Player Animation Update
+
+	if (!player.is_grounded) {
+		player_anim.play(player.velocity.y > 0.0f ? "Jump" : "Falling");
+	} else if (std::abs(player.velocity.x) > 0.5f) {
+		player_anim.play("Walk");
+	} else if (player_anim.row == main_character_sheet->row_index("Walk")) {
+		player_anim.play("Walk2Idle");
+	} else if (player_anim.row != main_character_sheet->row_index("Walk2Idle") || player_anim.finished) {
+		player_anim.play("Idle");
+	}
+	player_anim.update(elapsed);
+
 	for (auto const &enemy : enemies)
 	{
 		enemy->update(elapsed, colliders);
-
-		if (enemy->state == EnemyState::Dead)
-		{
-			enemies.erase(std::remove(enemies.begin(), enemies.end(), enemy), enemies.end());
-		}
 	}
+
+	// replaced enemy erase statement and moved outside of loop
+	// because it would cause a bug when the dummy died
+	std::erase_if(enemies, [](auto const &e) {
+		 return e->state == EnemyState::Dead; 
+	});
 
 	if (player.health > 0)
 	{
@@ -311,9 +341,6 @@ void PlayMode::update(float elapsed)
 	right.downs = 0;
 	up.downs = 0;
 	down.downs = 0;
-
-	idle_anim.update(elapsed);
-	walk_anim.update(elapsed);
 }
 
 void PlayMode::draw(glm::uvec2 const &drawable_size)
@@ -354,12 +381,23 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		sprites.draw(0, 0, glm::vec2(sprite.transform->position) * PPU + glm::vec2(static_cast<float>(sprite.sheet->info.cell_size.x / 2u), 0.0f));
 	}
 
-	//	{ // sprites
-	//		glm::mat4 world_to_clip = glm::ortho(lo.x, lo.x + view.x, lo.y, lo.y + view.y);
-	//		DrawSprites sprites(*test_character_sheet, world_to_clip);
-	//		sprites.draw(idle_anim.row, idle_anim.frame(), glm::vec2(-24.0f, 0.0f));
-	//		sprites.draw(walk_anim.row, walk_anim.frame(), glm::vec2(24.0f, 0.0f), true); // flipped
-	//	}
+	{ // player
+		AABB box = player.collider.getWorldSpaceAABB();
+		glm::vec2 feet = glm::vec2(player.transform->position.x, box.min.y) * PPU;
+		DrawSprites sprites(*main_character_sheet, proj);
+		sprites.draw(player_anim.row, player_anim.frame(), feet, facing_left);
+	}
+
+	{ //enemies
+		for (auto const &e : enemies)
+		{
+			AABB box = e->collider.getWorldSpaceAABB();
+			glm::vec2 feet = glm::vec2(e->transform.position.x, box.min.y) * PPU;
+			DrawSprites sprites(e->anim.sheet, proj);
+			sprites.draw(e->anim.row, e->anim.frame(), feet, e->facing_left);
+		}
+	}
+
 
 	{
 		DrawLines lines(world_to_clip);

@@ -1,5 +1,6 @@
 #pragma once
 #include "Collider.hpp"
+#include "SpriteAnimator.hpp"
 
 #include <vector>
 enum class EnemyType : uint8_t
@@ -18,7 +19,7 @@ enum class EnemyState : uint8_t
 
 struct Enemy
 {
-    Enemy(EnemyType enemy_type, glm::vec2 enemy_position);
+    Enemy(EnemyType enemy_type, glm::vec2 enemy_position, SpriteSheet const &sheet);
 
     virtual ~Enemy() = default;
 
@@ -32,6 +33,9 @@ struct Enemy
     int health = 100;
     int contact_damage = 10;
     bool grounded = false;
+
+    SpriteAnimator anim;
+    bool facing_left = false;
 
     void update(float dt, const std::vector<Collider> &col_list);
     void setBehaviorState(EnemyState new_state);

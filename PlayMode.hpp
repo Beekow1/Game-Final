@@ -57,8 +57,8 @@ struct PlayMode : Mode
 	static constexpr int PixelHeight = 270;
 	static constexpr float PPU = 16.0f;
 
-	SpriteAnimator idle_anim;
-	SpriteAnimator walk_anim;
+	SpriteAnimator player_anim;
+	bool facing_left = false;
 
 	std::vector<Collider> colliders;
 

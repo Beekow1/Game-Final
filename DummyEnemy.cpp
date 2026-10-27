@@ -1,6 +1,7 @@
 #include "DummyEnemy.hpp"
 
-DummyEnemy::DummyEnemy(glm::vec2 enemy_position) : Enemy(EnemyType::Dummy, enemy_position)
+DummyEnemy::DummyEnemy(glm::vec2 enemy_position, SpriteSheet const &sheet)
+    : Enemy(EnemyType::Dummy, enemy_position, sheet)
 {
     health = 100;
 
