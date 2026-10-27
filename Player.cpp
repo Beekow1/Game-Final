@@ -15,9 +15,13 @@ void Player::move(glm::vec2 input_dir, float elapsed)
 
     if (!is_grounded)
     {
-        accel_rate *= 0.65f;
+        accel_rate *= 0.75f;
     }
-    accel_rate *= move_lock;
+    else if (input_dir.x == 0.0f)
+    {
+        accel_rate = ground_braking;
+    }
+    accel_rate *= move_lock * (velocity.x * input_dir.x < 0.0f) ? turn_around_mult : 1.0f;
 
     float max_change = accel_rate * elapsed;
     velocity.x += std::clamp(target_speed - velocity.x, -max_change, max_change);
@@ -78,7 +82,11 @@ void Player::attemptJump()
             velocity.x = glm::sign(latest_dash_dir.x) * wavedash_speed;
             velocity.y = jump_force * 0.7f;
             jump_state = JumpState::Jumping;
-            lockMovement(0.4f);
+
+            is_dashing = false;
+            is_grounded = false;
+
+            move_lock = 1.0f;
             return;
         }
 
@@ -89,13 +97,18 @@ void Player::attemptJump()
 
 void Player::jumpArc()
 {
-    if (jump_state == JumpState::Jumping && std::abs(velocity.y) < apex_low_grav_cutoff)
+    if (is_dashing)
     {
-        jump_state = JumpState::Apex;
+        return;
     }
-    else if (jump_state == JumpState::Apex && velocity.y <= -apex_low_grav_cutoff)
+
+    if (velocity.y <= 0.0f)
     {
-        jump_state = JumpState::Falling;
+        jump_state = is_grounded ? JumpState::Grounded : JumpState::Falling;
+    }
+    else if (jump_state != JumpState::Falling)
+    {
+        jump_state = velocity.y <= apex_low_grav_cutoff ? JumpState::Apex : JumpState::Jumping;
     }
 }
 
@@ -145,10 +158,10 @@ void Player::applyPlayerGravity(float elapsed)
         current_gravity_mult = 10.0f;
         break;
     case JumpState::Apex:
-        current_gravity_mult = 2.0f;
+        current_gravity_mult = 6.0f;
         break;
     case JumpState::Falling:
-        current_gravity_mult = 14.0f;
+        current_gravity_mult = 18.0f;
         break;
     }
     velocity.y -= base_gravity * current_gravity_mult * elapsed;

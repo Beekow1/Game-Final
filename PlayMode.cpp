@@ -54,6 +54,29 @@ Load<SpriteSheet> test_character_sheet(LoadTagDefault, []() -> SpriteSheet const
 																											 },
 																										 }); });
 
+static SpriteSheet *load_static_image(std::string const &file_path, glm::uvec2 size)
+{
+	return new SpriteSheet(data_path(file_path), SpriteSheet::Info{
+													 .cell_size = size,
+													 .rows = {
+														 {"still", 1, 1.0f, true}}});
+}
+
+Load<SpriteSheet> platform_sheet(LoadTagDefault, []() -> SpriteSheet const *
+								 { return load_static_image("Platform.png", glm::uvec2(128, 86)); });
+
+Load<SpriteSheet> decoration_one_sheet(LoadTagDefault, []() -> SpriteSheet const *
+									   { return load_static_image("Platform Decoration 1.png", glm::uvec2(128, 86)); });
+
+Load<SpriteSheet> decoration_two_sheet(LoadTagDefault, []() -> SpriteSheet const *
+									   { return load_static_image("Platform Decoration 2.png", glm::uvec2(128, 86)); });
+
+Load<SpriteSheet> barrels_sheet(LoadTagDefault, []() -> SpriteSheet const *
+								{ return load_static_image("Drink Barrels.png", glm::uvec2(112, 32)); });
+
+Load<SpriteSheet> shelf_sheet(LoadTagDefault, []() -> SpriteSheet const *
+							  { return load_static_image("Bottle Shelf.png", glm::uvec2(64, 80)); });
+
 PlayMode::PlayMode() : scene(*hexapod_scene),
 					   idle_anim(*test_character_sheet, "idle"),
 					   walk_anim(*test_character_sheet, "walk")
@@ -64,7 +87,7 @@ PlayMode::PlayMode() : scene(*hexapod_scene),
 	scene.transforms.emplace_back();
 	Scene::Transform *player_transform = &scene.transforms.back();
 
-	player_transform->position = glm::vec3(0.0f, 0.0f, 0.0f);
+	player_transform->position = glm::vec3(160.0f, 158.0f, 0.0f) / PPU;
 	player.transform = player_transform;
 	player.collider.transform = player_transform;
 
@@ -76,21 +99,20 @@ PlayMode::PlayMode() : scene(*hexapod_scene),
 
 	colliders.emplace_back(player.collider);
 
-	floor.local_aabb.min = glm::vec3(-10.0f, -3.0f, 0.0f);
-	floor.local_aabb.max = glm::vec3(10.0f, 3.0f, 0.0f);
+	AABB platform_bb;
+	platform_bb.min = glm::vec3(0.0f, 67.0f, 0.0f);
+	platform_bb.max = glm::vec3(128.0f, 86.0f, 0.0f);
 
-	scene.transforms.emplace_back();
-	floor_transform = &scene.transforms.back();
+	addLevelSprite(*platform_sheet, glm::vec2(96.0f, 48.0f), true, platform_bb);
+	addLevelSprite(*platform_sheet, glm::vec2(256.0f, 48.0f), true, platform_bb);
 
-	floor_transform->position = glm::vec3(0.0f, -6.0f, 0.0f);
-	floor.transform = floor_transform;
+	addLevelSprite(*decoration_one_sheet, glm::vec2(96.0f, 48.0f), false);
+	addLevelSprite(*decoration_two_sheet, glm::vec2(256.0f, 48.0f), false);
+	addLevelSprite(*shelf_sheet, glm::vec2(122.0f, 134.0f), false);
+	addLevelSprite(*barrels_sheet, glm::vec2(265.0f, 134.0f), false);
 
-	floor.layer = CollisionLayer::Level;
-	floor.collision_mask = static_cast<std::uint32_t>(CollisionLayer::Player) | static_cast<std::uint32_t>(CollisionLayer::Enemy);
+	enemies.emplace_back(std::make_unique<DummyEnemy>(glm::vec2(320.0f, 166.0f) / PPU));
 
-	colliders.emplace_back(floor);
-
-	enemies.emplace_back(std::make_unique<DummyEnemy>(glm::vec2(4.0f, 0.0f)));
 	// get pointers to leg for convenience:
 	for (auto &transform : scene.transforms)
 	{
@@ -120,10 +142,31 @@ PlayMode::PlayMode() : scene(*hexapod_scene),
 	// start music loop playing:
 	//  (note: position will be over-ridden in update())
 	leg_tip_loop = Sound::loop_3D(*dusty_floor_sample, 1.0f, get_leg_tip_position(), 10.0f);
+
+	// Create low res framebuffer for rendering
+	glGenTextures(1, &color_texture);
+	glBindTexture(GL_TEXTURE_2D, color_texture);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, PixelWidth, PixelHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color_texture, 0);
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 PlayMode::~PlayMode()
 {
+	glDeleteFramebuffers(1, &fbo);
+	glDeleteTextures(1, &color_texture);
 }
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
@@ -131,6 +174,8 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 	if (evt.type == SDL_EVENT_KEY_DOWN)
 	{
+		if (evt.key.repeat)
+			return true;
 		if (evt.key.key == SDLK_ESCAPE)
 		{
 			SDL_SetWindowRelativeMouseMode(Mode::window, false);
@@ -331,39 +376,51 @@ void PlayMode::update(float elapsed)
 
 void PlayMode::draw(glm::uvec2 const &drawable_size)
 {
-	// 640 x 360 game window
-	const glm::vec2 GameSize(640.0f, 360.0f);
-	float scale = std::max(1.0f, std::round(drawable_size.y / 360.0f));
-	glm::vec2 view = glm::vec2(drawable_size) / scale; // visible area
 
-	glViewport(0, 0, drawable_size.x, drawable_size.y);
-	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glViewport(0, 0, PixelWidth, PixelHeight);
+
+	glEnable(GL_FRAMEBUFFER_SRGB);
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_BLEND);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+	glClearColor(0.00518f, 0.00605f, 0.01096f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// game area background:
-	glm::vec2 lo = glm::round(view_center) - glm::floor(view / 2.0f);
+	const glm::mat4 proj = glm::ortho(0.0f, static_cast<float>(PixelWidth), 0.0f, static_cast<float>(PixelHeight));
+	const glm::mat4 world_to_clip = proj *
+									glm::scale(glm::mat4(1.0f), glm::vec3(PPU, PPU, 1.0f));
 
-	{ // sprites
-		glm::mat4 world_to_clip = glm::ortho(lo.x, lo.x + view.x, lo.y, lo.y + view.y);
-		DrawSprites sprites(*test_character_sheet, world_to_clip);
-		sprites.draw(idle_anim.row, idle_anim.frame(), glm::vec2(-24.0f, 0.0f));
-		sprites.draw(walk_anim.row, walk_anim.frame(), glm::vec2(24.0f, 0.0f), true); // flipped
+	for (StaticSprite const &sprite : level_sprites)
+	{
+		if (sprite.is_fg)
+			continue;
+
+		DrawSprites sprites(*sprite.sheet, proj);
+		sprites.draw(0, 0, glm::vec2(sprite.transform->position) * PPU + glm::vec2(static_cast<float>(sprite.sheet->info.cell_size.x / 2u), 0.0f));
 	}
 
+	for (StaticSprite const &sprite : level_sprites)
 	{
-		glDisable(GL_DEPTH_TEST);
-		float aspect = float(drawable_size.x) / float(drawable_size.y);
-		float zoom = 10.0f;
+		if (!sprite.is_fg)
+			continue;
 
-		glm::mat4 world_to_clip = glm::ortho(-aspect * zoom, aspect * zoom, -zoom, zoom, 0.0f, 1.0f);
+		DrawSprites sprites(*sprite.sheet, proj);
+		sprites.draw(0, 0, glm::vec2(sprite.transform->position) * PPU + glm::vec2(static_cast<float>(sprite.sheet->info.cell_size.x / 2u), 0.0f));
+	}
 
+	//	{ // sprites
+	//		glm::mat4 world_to_clip = glm::ortho(lo.x, lo.x + view.x, lo.y, lo.y + view.y);
+	//		DrawSprites sprites(*test_character_sheet, world_to_clip);
+	//		sprites.draw(idle_anim.row, idle_anim.frame(), glm::vec2(-24.0f, 0.0f));
+	//		sprites.draw(walk_anim.row, walk_anim.frame(), glm::vec2(24.0f, 0.0f), true); // flipped
+	//	}
+
+	{
 		DrawLines lines(world_to_clip);
-
-		AABB world_floor_aabb = floor.getWorldSpaceAABB();
-		glm::vec3 floor_center = (world_floor_aabb.min + world_floor_aabb.max) * 0.5f;
-		glm::vec3 floor_extents = (world_floor_aabb.max - world_floor_aabb.min) * 0.5f;
-		glm::mat4x3 floor_draw_transform = glm::translate(glm::mat4(1.0f), floor_center) * glm::scale(glm::mat4(1.0f), floor_extents);
-		lines.draw_box(floor_draw_transform, glm::u8vec4(255, 0, 0, 255));
 
 		AABB world_player_aabb = player.collider.getWorldSpaceAABB();
 		glm::vec3 player_center = (world_player_aabb.min + world_player_aabb.max) * 0.5f;
@@ -395,7 +452,23 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 				glm::u8vec4(255, 255, 255, 255));
 		}
 	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glDrawBuffer(GL_BACK);
 	glViewport(0, 0, drawable_size.x, drawable_size.y);
+
+	glDisable(GL_FRAMEBUFFER_SRGB);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+	glReadBuffer(GL_COLOR_ATTACHMENT0);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+	glBlitFramebuffer(0, 0, PixelWidth, PixelHeight, 0, 0, drawable_size.x, drawable_size.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glEnable(GL_FRAMEBUFFER_SRGB);
 
 	GL_ERRORS();
 }
@@ -404,4 +477,30 @@ glm::vec3 PlayMode::get_leg_tip_position()
 {
 	// the vertex position here was read from the model in blender:
 	return lower_leg->make_world_from_local() * glm::vec4(-1.26137f, -11.861f, 0.0f, 1.0f);
+}
+
+Scene::Transform *PlayMode::addLevelSprite(SpriteSheet const &sheet, glm::vec2 bl, bool is_fg, std::optional<AABB> obj_AABB)
+{
+	scene.transforms.emplace_back();
+	Scene::Transform *sprite_transform = &scene.transforms.back();
+
+	sprite_transform->position = glm::vec3(bl / PPU, 0.0f);
+
+	level_sprites.push_back(StaticSprite{&sheet, sprite_transform, is_fg});
+
+	if (obj_AABB.has_value())
+	{
+		Collider collider;
+		collider.transform = sprite_transform;
+
+		collider.local_aabb.min = obj_AABB->min / PPU;
+		collider.local_aabb.max = obj_AABB->max / PPU;
+
+		collider.layer = CollisionLayer::Level;
+		collider.collision_mask = static_cast<std::uint32_t>(CollisionLayer::Player) | static_cast<std::uint32_t>(CollisionLayer::Enemy);
+
+		colliders.push_back(collider);
+	}
+
+	return sprite_transform;
 }
