@@ -21,8 +21,10 @@ void Player::move(glm::vec2 input_dir, float elapsed)
     {
         accel_rate = ground_braking;
     }
-    accel_rate *= move_lock * (velocity.x * input_dir.x < 0.0f) ? turn_around_mult : 1.0f;
 
+    float turn_mult = (velocity.x * input_dir.x < 0.0f) ? turn_around_mult : 1.0f;
+    accel_rate *= move_lock * turn_mult;
+    
     float max_change = accel_rate * elapsed;
     velocity.x += std::clamp(target_speed - velocity.x, -max_change, max_change);
 }
@@ -34,7 +36,6 @@ void Player::updatePlayer(float elapsed)
     i_timer = std::max(0.0f, i_timer - elapsed);
 
     elapsed_move_lock_timer += elapsed;
-
     if (elapsed_move_lock_timer < move_lock_time)
     {
         move_lock = elapsed_move_lock_timer / move_lock_time;
@@ -82,11 +83,12 @@ void Player::attemptJump()
             velocity.x = glm::sign(latest_dash_dir.x) * wavedash_speed;
             velocity.y = jump_force * 0.7f;
             jump_state = JumpState::Jumping;
-
+            
             is_dashing = false;
             is_grounded = false;
 
-            move_lock = 1.0f;
+            lockMovement(dash_duration);
+
             return;
         }
 

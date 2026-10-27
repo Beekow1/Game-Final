@@ -17,28 +17,6 @@
 
 #include <random>
 
-GLuint hexapod_meshes_for_lit_color_texture_program = 0;
-Load<MeshBuffer> hexapod_meshes(LoadTagDefault, []() -> MeshBuffer const *
-								{
-	MeshBuffer const *ret = new MeshBuffer(data_path("hexapod.pnct"));
-	hexapod_meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
-	return ret; });
-
-Load<Scene> hexapod_scene(LoadTagDefault, []() -> Scene const *
-						  { return new Scene(data_path("hexapod.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name)
-											 {
-												 Mesh const &mesh = hexapod_meshes->lookup(mesh_name);
-
-												 scene.drawables.emplace_back(transform);
-												 Scene::Drawable &drawable = scene.drawables.back();
-
-												 drawable.pipeline = lit_color_texture_program_pipeline;
-
-												 drawable.pipeline.vao = hexapod_meshes_for_lit_color_texture_program;
-												 drawable.pipeline.type = mesh.type;
-												 drawable.pipeline.start = mesh.start;
-												 drawable.pipeline.count = mesh.count; }); });
-
 Load<Sound::Sample> dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const *
 									   { return new Sound::Sample(data_path("dusty-floor.opus")); });
 
@@ -77,12 +55,15 @@ Load<SpriteSheet> barrels_sheet(LoadTagDefault, []() -> SpriteSheet const *
 Load<SpriteSheet> shelf_sheet(LoadTagDefault, []() -> SpriteSheet const *
 							  { return load_static_image("Bottle Shelf.png", glm::uvec2(64, 80)); });
 
-PlayMode::PlayMode() : scene(*hexapod_scene),
-					   idle_anim(*test_character_sheet, "idle"),
+PlayMode::PlayMode() : idle_anim(*test_character_sheet, "idle"),
 					   walk_anim(*test_character_sheet, "walk")
 {
-
 	colliders.reserve(10);
+
+	scene.transforms.emplace_back();
+	Scene::Transform *camera_transform = &scene.transforms.back();
+	scene.cameras.emplace_back(camera_transform);
+	camera = &scene.cameras.back();
 
 	scene.transforms.emplace_back();
 	Scene::Transform *player_transform = &scene.transforms.back();
@@ -112,36 +93,6 @@ PlayMode::PlayMode() : scene(*hexapod_scene),
 	addLevelSprite(*barrels_sheet, glm::vec2(265.0f, 134.0f), false);
 
 	enemies.emplace_back(std::make_unique<DummyEnemy>(glm::vec2(320.0f, 166.0f) / PPU));
-
-	// get pointers to leg for convenience:
-	for (auto &transform : scene.transforms)
-	{
-		if (transform.name == "Hip.FL")
-			hip = &transform;
-		else if (transform.name == "UpperLeg.FL")
-			upper_leg = &transform;
-		else if (transform.name == "LowerLeg.FL")
-			lower_leg = &transform;
-	}
-	if (hip == nullptr)
-		throw std::runtime_error("Hip not found.");
-	if (upper_leg == nullptr)
-		throw std::runtime_error("Upper leg not found.");
-	if (lower_leg == nullptr)
-		throw std::runtime_error("Lower leg not found.");
-
-	hip_base_rotation = hip->rotation;
-	upper_leg_base_rotation = upper_leg->rotation;
-	lower_leg_base_rotation = lower_leg->rotation;
-
-	// get pointer to camera for convenience:
-	if (scene.cameras.size() != 1)
-		throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
-	camera = &scene.cameras.front();
-
-	// start music loop playing:
-	//  (note: position will be over-ridden in update())
-	leg_tip_loop = Sound::loop_3D(*dusty_floor_sample, 1.0f, get_leg_tip_position(), 10.0f);
 
 	// Create low res framebuffer for rendering
 	glGenTextures(1, &color_texture);
@@ -282,7 +233,6 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 	{
 		if (SDL_GetWindowRelativeMouseMode(Mode::window) == false)
 		{
-			// SDL_SetWindowRelativeMouseMode(Mode::window, true);
 			return true;
 		}
 	}
@@ -296,20 +246,12 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed)
 {
-
-	// slowly rotates through [0,1):
-	wobble += elapsed / 10.0f;
-	wobble -= std::floor(wobble);
-
 	player.jump_buffer_timer -= elapsed;
 
 	if (!player.is_grounded)
 	{
 		player.coyote_timer -= elapsed;
 	}
-
-	// move sound to follow leg tip position:
-	leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
 
 	{ // update listener to camera position:
 		glm::mat4x3 frame = camera->transform->make_parent_from_local();
@@ -471,12 +413,6 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	glEnable(GL_FRAMEBUFFER_SRGB);
 
 	GL_ERRORS();
-}
-
-glm::vec3 PlayMode::get_leg_tip_position()
-{
-	// the vertex position here was read from the model in blender:
-	return lower_leg->make_world_from_local() * glm::vec4(-1.26137f, -11.861f, 0.0f, 1.0f);
 }
 
 Scene::Transform *PlayMode::addLevelSprite(SpriteSheet const &sheet, glm::vec2 bl, bool is_fg, std::optional<AABB> obj_AABB)

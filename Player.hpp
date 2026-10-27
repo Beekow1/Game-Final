@@ -28,7 +28,7 @@ struct Player
 
     float jump_force = 23.0f;
     float jump_cut_mult = 0.75f;
-    float apex_low_grav_cutoff = 1.0f;
+    float apex_low_grav_cutoff = 2.5f;
 
     float jump_buffer_duration = 0.12f;
     float coyote_duration = 0.1f;
@@ -37,13 +37,13 @@ struct Player
     size_t max_dash_count = 1;
 
     int dash_damage = 25;
-    float dash_bounce_speed = 32.0f;
-    float dash_bounce_lift = 15.0f;
-    float dash_bounce_control_time = 0.5f;
-    float dash_duration = 0.1f;
+    float dash_bounce_speed = 24.0f;
+    float dash_bounce_lift = 20.0f;
+    float dash_bounce_control_time = 0.25f;
+    float dash_duration = 0.2f;
     float dash_end_speed = 13.0f;
 
-    float wavedash_speed = 24.0f;
+    float wavedash_speed = 35.0f;
 
     float move_lock = 1.0f;
 
@@ -57,7 +57,7 @@ struct Player
     float hit_knockback_speed = 24.0f;
     float hurt_knockback_bounce = 18.0f;
 
-    float damage_control_lock = 0.15f;
+    float damage_control_lock = 0.1f;
     // states
     glm::vec2 velocity = glm::vec2(0.0f);
     glm::vec2 latest_dash_dir = glm::vec2(0.0f);
