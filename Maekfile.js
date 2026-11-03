@@ -142,6 +142,7 @@ const sprites = sprite_names.map(name => maek.COPY(`sprites/${name}.png`, `dist/
 const game_names = [
 	maek.CPP('PlayMode.cpp'),
 	maek.CPP('Player.cpp'),
+	maek.CPP('ProcGen.cpp'),
 	maek.CPP('Collider.cpp'),
 	maek.CPP('main.cpp'),
 	maek.CPP('LitColorTextureProgram.cpp'),

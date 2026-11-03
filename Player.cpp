@@ -21,7 +21,7 @@ void Player::move(glm::vec2 input_dir, float elapsed)
 
     if (!is_grounded)
     {
-        accel_rate *= 0.75f;
+        accel_rate *= 0.8f;
     }
     else if (input_dir.x == 0.0f)
     {
@@ -41,6 +41,9 @@ void Player::updatePlayer(float elapsed)
 
     i_timer = std::max(0.0f, i_timer - elapsed);
 
+    dash_timer = std::max(0.0f, dash_timer - elapsed);
+    tech_timer = std::max(0.0f, tech_timer - elapsed);
+
     elapsed_move_lock_timer += elapsed;
     if (elapsed_move_lock_timer < move_lock_time)
     {
@@ -49,12 +52,13 @@ void Player::updatePlayer(float elapsed)
     else
     {
         move_lock = 1.0f;
-        if (is_dashing)
-        {
-            is_dashing = false;
+        tech_state = TechState::Default;
+    }
 
-            velocity.x = std::clamp(velocity.x, -std::abs(latest_dash_dir.x) * dash_end_speed, std::abs(latest_dash_dir.x) * dash_end_speed);
-        }
+    if (is_dashing && dash_timer <= 0.0f)
+    {
+        is_dashing = false;
+        velocity.x = std::clamp(velocity.x, -std::abs(latest_dash_dir.x) * dash_end_speed, std::abs(latest_dash_dir.x) * dash_end_speed);
     }
 
     attemptJump();
@@ -77,14 +81,14 @@ void Player::attemptJump()
 
     if (can_jump && jump_not_wasted)
     {
-
+        bool in_tech = tech_timer > 0.0f;
+        tech_timer = 0.0f;
         jump_not_wasted = false;
         jump_buffer_timer = 0.0f;
         coyote_timer = 0.0f;
 
-        if ((latest_dash_dir.y < 0.0f) && is_dashing)
+        if ((latest_dash_dir.y < 0.0f && std::abs(latest_dash_dir.x) > 0.0f) && in_tech)
         {
-            // magic nmbrs sry
             std::cout << "WAVE DASH " << std::endl;
             velocity.x = glm::sign(latest_dash_dir.x) * wavedash_speed;
             velocity.y = jump_force * 0.7f;
@@ -93,8 +97,36 @@ void Player::attemptJump()
             is_dashing = false;
             is_grounded = false;
 
-            lockMovement(dash_duration);
+            lockMovement(wavedash_duration);
+            tech_state = TechState::Wave_Dashing;
 
+            return;
+        }
+        else if ((latest_dash_dir.y < 0.0f && std::abs(latest_dash_dir.x) == 0.0f) && in_tech)
+        {
+            std::cout << "SUPER JUMP " << std::endl;
+            velocity.y = jump_force * 1.2f;
+            jump_state = JumpState::Jumping;
+
+            is_dashing = false;
+            is_grounded = false;
+
+            lockMovement(dash_time);
+            tech_state = TechState::Super_Jumping;
+            return;
+        }
+        else if ((std::abs(latest_dash_dir.y) == 0.0f && std::abs(latest_dash_dir.x) > 0.0f) && in_tech)
+        {
+            std::cout << "DASH JUMP" << std::endl;
+            velocity.y = jump_force * 0.85f;
+            velocity.x *= 1.25f;
+            jump_state = JumpState::Jumping;
+
+            is_dashing = false;
+            is_grounded = false;
+
+            lockMovement(dash_jump_duration);
+            tech_state = TechState::Dash_Jumping;
             return;
         }
 
@@ -138,7 +170,10 @@ void Player::dash(glm::vec2 input_dir)
     }
 
     is_dashing = true;
-    lockMovement(dash_duration);
+    dash_timer = dash_time;
+    tech_timer = dash_time + dash_tech_grace;
+    lockMovement(dash_time);
+    tech_state = TechState::Dashing;
 
     cur_dash_count--;
 
@@ -148,7 +183,10 @@ void Player::dash(glm::vec2 input_dir)
     }
 
     velocity = glm::vec2(0.0f);
-    jump_state = JumpState::Jumping;
+
+    if (dash_dir.x != 0.0f && dash_dir.y == 0.0f) { jump_state = JumpState::Dashing; }
+    else { jump_state = JumpState::Jumping; }
+
     velocity += dash_dir * dash_force;
     latest_dash_dir = dash_dir;
 }
@@ -163,13 +201,16 @@ void Player::applyPlayerGravity(float elapsed)
         current_gravity_mult = 8.0f;
         break;
     case JumpState::Jumping:
-        current_gravity_mult = 10.0f;
+        current_gravity_mult = 8.0f;
         break;
     case JumpState::Apex:
-        current_gravity_mult = 6.0f;
+        current_gravity_mult = 2.0f;
         break;
     case JumpState::Falling:
-        current_gravity_mult = 12.0f;
+        current_gravity_mult = 9.0f;
+        break;
+    case JumpState::Dashing:
+        current_gravity_mult = 0.0f;
         break;
     }
     velocity.y -= base_gravity * current_gravity_mult * elapsed;
@@ -195,21 +236,26 @@ void Player::dashBounce()
 {
     is_dashing = false;
     velocity = -latest_dash_dir * dash_bounce_speed;
+    velocity.y = dash_bounce_lift;
 
+    lockMovement(dash_bounce_control_time);
     if (std::abs(latest_dash_dir.y) < 0.01f)
     {
-        velocity.y = dash_bounce_lift;
+        lockMovement(horiz_dash_bounce_control_time);
     }
+
+    std::cout << velocity.y << std::endl;
 
     is_grounded = false;
     coyote_timer = 0.0f;
+    tech_timer = 0.0f;
 
     jump_buffer_timer = 0.0f;
     jump_not_wasted = false;
 
     jump_state = velocity.y > 0.0f ? JumpState::Jumping : JumpState::Falling;
 
-    lockMovement(dash_bounce_control_time);
+    cur_dash_count++;
 
     i_timer = std::max(i_timer, dash_attack_grace);
 }
@@ -237,7 +283,9 @@ bool Player::takeDamage(int amount, glm::vec2 damage_source)
 
     is_dashing = false;
     is_grounded = false;
+    tech_state = TechState::Default;
     coyote_timer = 0.0f;
+    tech_timer = 0.0f;
     jump_buffer_timer = 0.0f;
     jump_not_wasted = false;
 
@@ -282,6 +330,14 @@ void runCollision(Player &player, const std::vector<Collider> &col_list)
                 player.jump_state = JumpState::Grounded;
                 player.coyote_timer = player.coyote_duration;
                 player.cur_dash_count = player.max_dash_count;
+
+                if (player.is_dashing && player.latest_dash_dir.y < 0.0f)
+                {
+                    player.dash_timer = 0.0f;
+                    player.is_dashing = false;
+                    player.lockMovement(0.1f);
+                    player.velocity.x *= 1.5f;
+                }
 
                 if (player.velocity.y < 0.0f)
                 {

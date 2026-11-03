@@ -8,6 +8,7 @@
 
 #include "SpriteAnimator.hpp"
 #include "SpriteSheet.hpp"
+#include "ProcGen.hpp"
 
 #include <glm/glm.hpp>
 
@@ -38,6 +39,7 @@ struct PlayMode : Mode
 	Scene scene;
 
 	Player player;
+	ProcGen proc_gen;
 
 	std::vector<std::unique_ptr<Enemy>> enemies;
 
@@ -50,7 +52,7 @@ struct PlayMode : Mode
 
 	std::vector<StaticSprite> level_sprites;
 
-	Scene::Transform *addLevelSprite(SpriteSheet const &sheet, glm::vec2 bl, bool is_fg = false, std::optional<AABB> obj_AABB = std::nullopt);
+	Scene::Transform *addLevelSprite(SpriteSheet const &sheet, glm::vec2 bl, bool is_fg = false, std::vector<AABB> const& obj_AABBs = {});
 
 	// game render settings
 	static constexpr int PixelWidth = 480;
@@ -69,6 +71,14 @@ struct PlayMode : Mode
 
 	// camera:
 	Scene::Camera *camera = nullptr;
+	glm::vec2 cam_pos;
+	glm::vec2 target_cam_pos;
+	float look_ahead_dir = 1.0f;
+	float look_ahead = 1.2f;
+	float cam_smoothing = 0.08f;
+	float dead_zone_x = 0.5f;
+	float dead_zone_y = 3.0f;
+	float pull_strength = 4.0f;
 
 	GLuint fbo = 0;
 	GLuint color_texture = 0;

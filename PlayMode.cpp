@@ -66,15 +66,21 @@ Load<SpriteSheet> decoration_two_sheet(LoadTagDefault, []() -> SpriteSheet const
 Load<SpriteSheet> barrels_sheet(LoadTagDefault, []() -> SpriteSheet const *
 								{ return load_static_image("Drink Barrels.png", glm::uvec2(112, 32)); });
 
+Load<SpriteSheet> floor_sheet(LoadTagDefault, []() -> SpriteSheet const *
+								{ return load_static_image("floor.png", glm::uvec2(512, 512)); });
+
 Load<SpriteSheet> shelf_sheet(LoadTagDefault, []() -> SpriteSheet const *
 							  { return load_static_image("Bottle Shelf.png", glm::uvec2(64, 80)); });
 
 PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 {
 	colliders.reserve(10);
+	proc_gen.generateLevel();
+	proc_gen.printGrid();
 
 	scene.transforms.emplace_back();
 	Scene::Transform *camera_transform = &scene.transforms.back();
+	camera_transform->position = glm::vec3(0.0f);
 	scene.cameras.emplace_back(camera_transform);
 	camera = &scene.cameras.back();
 
@@ -97,14 +103,44 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 	platform_bb.min = glm::vec3(0.0f, 67.0f, 0.0f);
 	platform_bb.max = glm::vec3(128.0f, 86.0f, 0.0f);
 
-	addLevelSprite(*platform_sheet, glm::vec2(96.0f, 48.0f), true, platform_bb);
-	addLevelSprite(*platform_sheet, glm::vec2(256.0f, 48.0f), true, platform_bb);
+	//addLevelSprite(*platform_sheet, glm::vec2(96.0f, 48.0f), true, {platform_bb});
+	//addLevelSprite(*platform_sheet, glm::vec2(256.0f, 48.0f), true, {platform_bb});
 
-	addLevelSprite(*decoration_one_sheet, glm::vec2(96.0f, 48.0f), false);
-	addLevelSprite(*decoration_two_sheet, glm::vec2(256.0f, 48.0f), false);
-	addLevelSprite(*shelf_sheet, glm::vec2(122.0f, 134.0f), false);
+	//addLevelSprite(*decoration_one_sheet, glm::vec2(96.0f, 48.0f), false);
+	//addLevelSprite(*decoration_two_sheet, glm::vec2(256.0f, 48.0f), false);
+	//addLevelSprite(*shelf_sheet, glm::vec2(122.0f, 134.0f), false);
 	addLevelSprite(*barrels_sheet, glm::vec2(265.0f, 134.0f), false);
+	
+	glm::vec3 down_min = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 down_max = glm::vec3(512.0f, 1.0f, 0.0f);
 
+	glm::vec3 up_min = glm::vec3(0.0f, 511.0f, 0.0f);
+	glm::vec3 up_max = glm::vec3(512.0f, 512.0f, 0.0f);
+
+	glm::vec3 left_min = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 left_max = glm::vec3(1.0f, 512.0f, 0.0f);
+
+	glm::vec3 right_min = glm::vec3(511.0f, 0.0f, 0.0f);
+	glm::vec3 right_max = glm::vec3(512.0f, 512.0f, 0.0f);
+
+	for (size_t i = 0; i < proc_gen.active_rooms.size(); i++)
+	{
+		std::shared_ptr<Room> room =  proc_gen.active_rooms[i];
+		glm::vec3 pos = glm::vec3(room->world_x, room->world_y, 0.0f);
+
+		std::vector<AABB> level_bbs;
+		level_bbs.reserve(4);
+
+		if (!(room->doors & Doors::Left))  { level_bbs.push_back({left_min, left_max}); std::cout << "LEFT" << std::endl; }
+		if (!(room->doors & Doors::Right)) { level_bbs.push_back({right_min, right_max}); std::cout << "RIGHT" << std::endl; }
+		if (!(room->doors & Doors::Up))    { level_bbs.push_back({up_min, up_max}); std::cout << "UP" << std::endl; }
+		if (!(room->doors & Doors::Down))  { level_bbs.push_back({down_min, down_max}); std::cout << "DOWN" << std::endl; }
+
+		std::cout << "-------" << std::endl;
+
+		addLevelSprite(*floor_sheet, glm::vec2(pos), false, level_bbs);
+	}
+	
 	enemies.emplace_back(std::make_unique<DummyEnemy>(glm::vec2(320.0f, 166.0f) / PPU, *dummy_sheet));
 
 	// Create low res framebuffer for rendering
@@ -135,7 +171,6 @@ PlayMode::~PlayMode()
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 {
-
 	if (evt.type == SDL_EVENT_KEY_DOWN)
 	{
 		if (evt.key.repeat)
@@ -266,6 +301,27 @@ void PlayMode::update(float elapsed)
 		player.coyote_timer -= elapsed;
 	}
 
+	float t = elapsed / cam_smoothing;
+	t = glm::clamp(t, 0.0f, 1.0f);
+
+	if (input_dir.x > 0.0f)
+	{
+		look_ahead_dir = input_dir.x;
+	}
+
+	target_cam_pos = player.transform->position + glm::vec3((look_ahead_dir * look_ahead), 0.0f, 0.0f);
+
+	glm::vec2 offset = glm::vec2(player.transform->position) - glm::vec2(camera->transform->position);
+
+	float excess_x = glm::max(0.0f, glm::abs(offset.x) - (dead_zone_x / 2.0f));
+	float excess_y = glm::max(0.0f, glm::abs(offset.y) - (dead_zone_y / 2.0f));
+	float total_excess_distance = glm::length(glm::vec2(excess_x, excess_y));
+	float dynamic_speed = total_excess_distance * pull_strength;
+
+	float smoothT = 1.0f - glm::exp(-dynamic_speed * elapsed);
+
+	cam_pos = glm::mix(glm::vec2(camera->transform->position), target_cam_pos, smoothT);
+
 	{ // update listener to camera position:
 		glm::mat4x3 frame = camera->transform->make_parent_from_local();
 		glm::vec3 frame_right = frame[0];
@@ -345,9 +401,11 @@ void PlayMode::update(float elapsed)
 
 void PlayMode::draw(glm::uvec2 const &drawable_size)
 {
-
+	const int fbo_w = PixelWidth + 1;
+	const int fbo_h = PixelHeight + 1;
+	
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glViewport(0, 0, PixelWidth, PixelHeight);
+	glViewport(0, 0, fbo_w, fbo_h);
 
 	glEnable(GL_FRAMEBUFFER_SRGB);
 	glDisable(GL_DEPTH_TEST);
@@ -359,8 +417,18 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	glClearColor(0.00518f, 0.00605f, 0.01096f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	const glm::mat4 proj = glm::ortho(0.0f, static_cast<float>(PixelWidth), 0.0f, static_cast<float>(PixelHeight));
-	const glm::mat4 world_to_clip = proj *
+	const glm::mat4 proj = glm::ortho(0.0f, (float)fbo_w, 0.0f, (float)fbo_h);
+
+	camera->transform->position = glm::vec3(cam_pos, 0.0f);
+
+	glm::vec2 cam_pos_ppu = glm::floor(glm::vec2(camera->transform->position) * PPU);
+
+	glm::vec2 screen_center = glm::vec2(PixelWidth / 2.0f, PixelHeight / 2.0f);
+	glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(screen_center - cam_pos_ppu, 0.0f));
+
+	const glm::mat4 view_proj = proj * view;
+
+	const glm::mat4 world_to_clip = view_proj *
 									glm::scale(glm::mat4(1.0f), glm::vec3(PPU, PPU, 1.0f));
 
 	for (StaticSprite const &sprite : level_sprites)
@@ -368,7 +436,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		if (sprite.is_fg)
 			continue;
 
-		DrawSprites sprites(*sprite.sheet, proj);
+		DrawSprites sprites(*sprite.sheet, view_proj);
 		sprites.draw(0, 0, glm::vec2(sprite.transform->position) * PPU + glm::vec2(static_cast<float>(sprite.sheet->info.cell_size.x / 2u), 0.0f));
 	}
 
@@ -377,14 +445,14 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		if (!sprite.is_fg)
 			continue;
 
-		DrawSprites sprites(*sprite.sheet, proj);
+		DrawSprites sprites(*sprite.sheet, view_proj);
 		sprites.draw(0, 0, glm::vec2(sprite.transform->position) * PPU + glm::vec2(static_cast<float>(sprite.sheet->info.cell_size.x / 2u), 0.0f));
 	}
 
 	{ // player
 		AABB box = player.collider.getWorldSpaceAABB();
 		glm::vec2 feet = glm::vec2(player.transform->position.x, box.min.y) * PPU;
-		DrawSprites sprites(*main_character_sheet, proj);
+		DrawSprites sprites(*main_character_sheet, view_proj);
 		sprites.draw(player_anim.row, player_anim.frame(), feet, facing_left);
 	}
 
@@ -393,11 +461,10 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		{
 			AABB box = e->collider.getWorldSpaceAABB();
 			glm::vec2 feet = glm::vec2(e->transform.position.x, box.min.y) * PPU;
-			DrawSprites sprites(e->anim.sheet, proj);
+			DrawSprites sprites(e->anim.sheet, view_proj);
 			sprites.draw(e->anim.row, e->anim.frame(), feet, e->facing_left);
 		}
 	}
-
 
 	{
 		DrawLines lines(world_to_clip);
@@ -432,6 +499,19 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 				glm::u8vec4(255, 255, 255, 255));
 		}
 	}
+
+	float scale_x = (float)drawable_size.x / PixelWidth;
+	float scale_y = (float)drawable_size.y / PixelHeight;
+
+	glm::vec2 exact_px = glm::vec2(camera->transform->position) * PPU;
+	glm::vec2 frac = exact_px - cam_pos_ppu; 
+
+	GLint offset_x = static_cast<GLint>(std::floor(frac.x * scale_x));
+	GLint offset_y = static_cast<GLint>(std::floor(frac.y * scale_y));
+
+	GLint dst_w = (GLint)std::lround(fbo_w * scale_x);
+	GLint dst_h = (GLint)std::lround(fbo_h * scale_y);
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glDrawBuffer(GL_BACK);
 	glViewport(0, 0, drawable_size.x, drawable_size.y);
@@ -445,7 +525,9 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	glReadBuffer(GL_COLOR_ATTACHMENT0);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
-	glBlitFramebuffer(0, 0, PixelWidth, PixelHeight, 0, 0, drawable_size.x, drawable_size.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	glBlitFramebuffer(0, 0, fbo_w, fbo_h,
+					  -offset_x, -offset_y, dst_w - offset_x, dst_h - offset_y,
+					  GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glEnable(GL_FRAMEBUFFER_SRGB);
@@ -453,7 +535,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	GL_ERRORS();
 }
 
-Scene::Transform *PlayMode::addLevelSprite(SpriteSheet const &sheet, glm::vec2 bl, bool is_fg, std::optional<AABB> obj_AABB)
+Scene::Transform *PlayMode::addLevelSprite(SpriteSheet const &sheet, glm::vec2 bl, bool is_fg, std::vector<AABB> const& obj_AABBs)
 {
 	scene.transforms.emplace_back();
 	Scene::Transform *sprite_transform = &scene.transforms.back();
@@ -462,18 +544,21 @@ Scene::Transform *PlayMode::addLevelSprite(SpriteSheet const &sheet, glm::vec2 b
 
 	level_sprites.push_back(StaticSprite{&sheet, sprite_transform, is_fg});
 
-	if (obj_AABB.has_value())
+	if (!obj_AABBs.empty())
 	{
-		Collider collider;
-		collider.transform = sprite_transform;
+		for (size_t i = 0; i < obj_AABBs.size(); i++)
+		{
+			Collider collider;
+			collider.transform = sprite_transform;
 
-		collider.local_aabb.min = obj_AABB->min / PPU;
-		collider.local_aabb.max = obj_AABB->max / PPU;
+			collider.local_aabb.min = obj_AABBs[i].min / PPU;
+			collider.local_aabb.max = obj_AABBs[i].max / PPU;
 
-		collider.layer = CollisionLayer::Level;
-		collider.collision_mask = static_cast<std::uint32_t>(CollisionLayer::Player) | static_cast<std::uint32_t>(CollisionLayer::Enemy);
+			collider.layer = CollisionLayer::Level;
+			collider.collision_mask = static_cast<std::uint32_t>(CollisionLayer::Player) | static_cast<std::uint32_t>(CollisionLayer::Enemy);
 
-		colliders.push_back(collider);
+			colliders.push_back(collider);
+		}
 	}
 
 	return sprite_transform;
