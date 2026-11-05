@@ -61,6 +61,8 @@ void Player::updatePlayer(float elapsed)
         velocity.x = std::clamp(velocity.x, -std::abs(latest_dash_dir.x) * dash_end_speed, std::abs(latest_dash_dir.x) * dash_end_speed);
     }
 
+    is_attacking = is_dashing || tech_state != TechState::Default;
+
     attemptJump();
 
     jumpArc();

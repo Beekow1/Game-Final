@@ -66,6 +66,7 @@ Load<SpriteSheet> decoration_two_sheet(LoadTagDefault, []() -> SpriteSheet const
 Load<SpriteSheet> barrels_sheet(LoadTagDefault, []() -> SpriteSheet const *
 								{ return load_static_image("Drink Barrels.png", glm::uvec2(112, 32)); });
 
+//dictates how big the room is in addition to roomscale in gen_params
 Load<SpriteSheet> floor_sheet(LoadTagDefault, []() -> SpriteSheet const *
 								{ return load_static_image("floor.png", glm::uvec2(512, 512)); });
 
@@ -74,7 +75,9 @@ Load<SpriteSheet> shelf_sheet(LoadTagDefault, []() -> SpriteSheet const *
 
 PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 {
-	colliders.reserve(10);
+	create_room_templates();
+	create_templates_with_doors();
+	colliders.reserve(128);
 	proc_gen.generateLevel();
 	proc_gen.printGrid();
 
@@ -112,16 +115,16 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 	addLevelSprite(*barrels_sheet, glm::vec2(265.0f, 134.0f), false);
 	
 	glm::vec3 down_min = glm::vec3(0.0f, 0.0f, 0.0f);
-	glm::vec3 down_max = glm::vec3(512.0f, 1.0f, 0.0f);
+	glm::vec3 down_max = glm::vec3(gen_params.room_scale, 1.0f, 0.0f);
 
 	glm::vec3 up_min = glm::vec3(0.0f, 511.0f, 0.0f);
-	glm::vec3 up_max = glm::vec3(512.0f, 512.0f, 0.0f);
+	glm::vec3 up_max = glm::vec3(gen_params.room_scale, gen_params.room_scale, 0.0f);
 
 	glm::vec3 left_min = glm::vec3(0.0f, 0.0f, 0.0f);
-	glm::vec3 left_max = glm::vec3(1.0f, 512.0f, 0.0f);
+	glm::vec3 left_max = glm::vec3(1.0f, gen_params.room_scale, 0.0f);
 
 	glm::vec3 right_min = glm::vec3(511.0f, 0.0f, 0.0f);
-	glm::vec3 right_max = glm::vec3(512.0f, 512.0f, 0.0f);
+	glm::vec3 right_max = glm::vec3(gen_params.room_scale, gen_params.room_scale, 0.0f);
 
 	for (size_t i = 0; i < proc_gen.active_rooms.size(); i++)
 	{
@@ -131,12 +134,19 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 		std::vector<AABB> level_bbs;
 		level_bbs.reserve(4);
 
-		if (!(room->doors & Doors::Left))  { level_bbs.push_back({left_min, left_max}); std::cout << "LEFT" << std::endl; }
-		if (!(room->doors & Doors::Right)) { level_bbs.push_back({right_min, right_max}); std::cout << "RIGHT" << std::endl; }
-		if (!(room->doors & Doors::Up))    { level_bbs.push_back({up_min, up_max}); std::cout << "UP" << std::endl; }
-		if (!(room->doors & Doors::Down))  { level_bbs.push_back({down_min, down_max}); std::cout << "DOWN" << std::endl; }
+		if (!(room->doors & Doors::Left))  { level_bbs.push_back({left_min, left_max}); }
+		if (!(room->doors & Doors::Right)) { level_bbs.push_back({right_min, right_max}); }
+		if (!(room->doors & Doors::Up))    { level_bbs.push_back({up_min, up_max}); }
+		if (!(room->doors & Doors::Down))  { level_bbs.push_back({down_min, down_max}); }
 
-		std::cout << "-------" << std::endl;
+		std::vector<int> bucket  = get_templates_with_doors(room->doors);
+		if (!bucket.empty()) 
+		{
+			int pick = proc_gen.getRand(0, (int)(bucket .size() - 1));
+			int template_id = bucket[pick];
+			room->template_id = template_id;
+			drawChunk(get_room_templates(template_id));
+		}
 
 		addLevelSprite(*floor_sheet, glm::vec2(pos), false, level_bbs);
 	}
@@ -378,7 +388,7 @@ void PlayMode::update(float elapsed)
 				continue;
 			}
 
-			if (player.is_dashing)
+			if (player.is_attacking)
 			{
 				enemy->takeDamage(player.dash_damage);
 				player.dashBounce();
@@ -562,4 +572,27 @@ Scene::Transform *PlayMode::addLevelSprite(SpriteSheet const &sheet, glm::vec2 b
 	}
 
 	return sprite_transform;
+}
+
+void PlayMode::drawChunk(RoomTemplate template_room)
+{
+	//aabbs and sprites could be defined somewhwere else globally for this to be less cluttered
+	AABB platform_bb;
+	platform_bb.min = glm::vec3(0.0f, 67.0f, 0.0f);
+	platform_bb.max = glm::vec3(128.0f, 86.0f, 0.0f);
+
+	for (auto& prop : template_room.props)
+	{
+		//need to add switch case statements based on props type
+
+		//also may need to pass in the world position to offset the local position
+		addLevelSprite(*platform_sheet, prop.local_px, prop.is_fg, {platform_bb});
+	}
+
+	/*
+	for (auto& enemy : template_room.enemies)
+	{
+		//spawn enemies
+	}
+	*/
 }

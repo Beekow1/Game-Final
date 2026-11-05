@@ -86,6 +86,7 @@ struct Player
     bool is_dashing = false;
     bool jump_not_wasted = false;
     bool is_grounded = false;
+    bool is_attacking = false;
     JumpState jump_state;
     TechState tech_state;
 

@@ -6,8 +6,6 @@
 #include <stack>
 #include <glm/glm.hpp>
 
-//enum class Direction : int { Right = 0, Down = 1, Left = 2, Up = 3, None = -1 };
-
 namespace Doors
 {
     constexpr int None  = 0;
@@ -20,6 +18,7 @@ namespace Doors
 struct Room
 {
     size_t width = 1, height = 1;
+    size_t template_id;
     int doors = Doors::None;
     float world_x = 0.0f, world_y = 0.0f;
 };

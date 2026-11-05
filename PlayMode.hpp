@@ -8,7 +8,9 @@
 
 #include "SpriteAnimator.hpp"
 #include "SpriteSheet.hpp"
+
 #include "ProcGen.hpp"
+#include "RoomTemplate.hpp"
 
 #include <glm/glm.hpp>
 
@@ -25,6 +27,7 @@ struct PlayMode : Mode
 	virtual bool handle_event(SDL_Event const &, glm::uvec2 const &window_size) override;
 	virtual void update(float elapsed) override;
 	virtual void draw(glm::uvec2 const &drawable_size) override;
+	void drawChunk(RoomTemplate template_room);
 
 	//----- game state -----
 
@@ -40,6 +43,7 @@ struct PlayMode : Mode
 
 	Player player;
 	ProcGen proc_gen;
+	GenParams gen_params;
 
 	std::vector<std::unique_ptr<Enemy>> enemies;
 
