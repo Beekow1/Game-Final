@@ -12,6 +12,8 @@
 #include "ProcGen.hpp"
 #include "RoomTemplate.hpp"
 
+#include "load_save_png.hpp"
+
 #include <glm/glm.hpp>
 
 #include <vector>
@@ -37,6 +39,16 @@ struct PlayMode : Mode
 		uint8_t downs = 0;
 		uint8_t pressed = 0;
 	} left, right, down, up, J;
+
+	// level / respawn
+	bool use_tutorial = true;
+	glm::vec2 room_size = glm::vec2(0.0f);    // camera clamp bounds
+	glm::vec2 spawn_pos = glm::vec2(0.0f);    // player center
+	std::vector<glm::vec2> dummy_spawns;      // enemy centers
+	bool player_dead = false;
+	float kill_y = -2.0f;                     // units below the room's bottom edge
+
+	void respawn();
 
 	// local copy of the game scene (so code can change it during gameplay):
 	Scene scene;

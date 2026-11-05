@@ -60,7 +60,7 @@ struct Player
     float dash_bounce_control_time = 0.3f;
     float dash_end_speed = 18.0f;
 
-    float wavedash_speed = 27.0f;
+    float wavedash_speed = 31.0f;
     float wavedash_duration = 0.3f;
 
     float dash_jump_duration = 0.4f;
@@ -114,6 +114,8 @@ struct Player
 
     bool takeDamage(int amount, glm::vec2 damage_source);
     void dashBounce();
+
+    void reset(glm::vec2 position);
 };
 
 void runCollision(Player &player, const std::vector<Collider> &col_list);
