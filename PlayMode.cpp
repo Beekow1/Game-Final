@@ -11,6 +11,7 @@
 #include "data_path.hpp"
 
 #include "DummyEnemy.hpp"
+#include "RatEnemy.hpp"
 
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -23,28 +24,61 @@ Load<Sound::Sample> dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample con
 Load<Sound::Sample> honk_sample(LoadTagDefault, []() -> Sound::Sample const *
 								{ return new Sound::Sample(data_path("honk.wav")); });
 
-Load<SpriteSheet> main_character_sheet(LoadTagDefault, []() -> SpriteSheet const * {
-	return new SpriteSheet(data_path("sprites/main-character.png"), SpriteSheet::Info{
-		.cell_size = glm::uvec2(48, 24),
-		.rows = { 
-			{"Walk",      8,  8.0f, true },
-			{"Idle",      10, 8.0f, true },
-			{"Jump",      3,  8.0f, false}, 
-			{"Falling",   4,  8.0f, true },
-			{"Walk2Idle", 1,  8.0f, false}, //transition, then switch to Idle
-		},
-	});
-});
+Load<SpriteSheet> main_character_sheet(LoadTagDefault, []() -> SpriteSheet const *
+									   { return new SpriteSheet(data_path("sprites/main-character.png"), SpriteSheet::Info{
+																											 .cell_size = glm::uvec2(48, 24),
+																											 .rows = {
+																												 {"Walk", 8, 8.0f, true},
+																												 {"Idle", 10, 8.0f, true},
+																												 {"Jump", 3, 8.0f, false},
+																												 {"Falling", 4, 8.0f, true},
+																												 {"Walk2Idle", 1, 8.0f, false}, // transition, then switch to Idle
+																											 },
+																										 }); });
 
-Load<SpriteSheet> dummy_sheet(LoadTagDefault, []() -> SpriteSheet const * {
-	return new SpriteSheet(data_path("sprites/Dummy.png"), SpriteSheet::Info{
-		.cell_size = glm::uvec2(24, 48),
-		.rows = {
-			{"Idle", 1, 10.0f, true },
-			{"Hurt", 5, 10.0f, false},
-		},
-	});
-});
+Load<SpriteSheet> dummy_sheet(LoadTagDefault, []() -> SpriteSheet const *
+							  { return new SpriteSheet(data_path("sprites/Dummy.png"), SpriteSheet::Info{
+																						   .cell_size = glm::uvec2(24, 48),
+																						   .rows = {
+																							   {"Idle", 1, 10.0f, true},
+																							   {"Hurt", 5, 10.0f, false},
+																						   },
+																					   }); });
+
+Load<SpriteSheet> blocker_sheet(LoadTagDefault, []() -> SpriteSheet const *
+								{ return new SpriteSheet(data_path("Default Room Blocker-Sheet.png"), SpriteSheet::Info{
+																										  .cell_size = glm::uvec2(512, 512),
+																										  .rows = {
+																											  {"Left", 1, 1.0f, false},
+																											  {"Down", 1, 1.0f, false},
+																											  {"Right", 1, 1.0f, false},
+																											  {"Up", 1, 1.0f, false},
+																										  },
+																									  }); });
+
+Load<SpriteSheet> rat_sheet(LoadTagDefault, []() -> SpriteSheet const *
+							{ return new SpriteSheet(data_path("Def Mouse-Sheet.png"), SpriteSheet::Info{
+																						   .cell_size = glm::uvec2(48, 24),
+																						   .rows = {
+																							   {"Idle", 4, 10.0f, true},
+																						   },
+																					   }); });
+
+Load<SpriteSheet> exploding_rat_sheet(LoadTagDefault, []() -> SpriteSheet const *
+									  { return new SpriteSheet(data_path("Explo Mouse-Sheet.png"), SpriteSheet::Info{
+																									   .cell_size = glm::uvec2(48, 24),
+																									   .rows = {
+																										   {"Idle", 4, 10.0f, true},
+																									   },
+																								   }); });
+
+Load<SpriteSheet> heart_sheet(LoadTagDefault, []() -> SpriteSheet const *
+							  { return new SpriteSheet(data_path("Heart.png"), SpriteSheet::Info{
+																				   .cell_size = glm::uvec2(16, 16), // lets hope this is enough!
+																				   .rows = {
+																					   {"Hearts", 2, 1.0f, false},
+																				   },
+																			   }); });
 
 static SpriteSheet *load_static_image(std::string const &file_path, glm::uvec2 size)
 {
@@ -66,9 +100,9 @@ Load<SpriteSheet> decoration_two_sheet(LoadTagDefault, []() -> SpriteSheet const
 Load<SpriteSheet> barrels_sheet(LoadTagDefault, []() -> SpriteSheet const *
 								{ return load_static_image("Drink Barrels.png", glm::uvec2(112, 32)); });
 
-//dictates how big the room is in addition to roomscale in gen_params
-Load<SpriteSheet> floor_sheet(LoadTagDefault, []() -> SpriteSheet const *
-								{ return load_static_image("floor.png", glm::uvec2(512, 512)); });
+// dictates how big the room is in addition to roomscale in gen_params
+Load<SpriteSheet> default_room_sheet(LoadTagDefault, []() -> SpriteSheet const *
+									 { return load_static_image("Default Room Layout.png", glm::uvec2(512, 512)); });
 
 Load<SpriteSheet> shelf_sheet(LoadTagDefault, []() -> SpriteSheet const *
 							  { return load_static_image("Bottle Shelf.png", glm::uvec2(64, 80)); });
@@ -78,6 +112,7 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 	create_room_templates();
 	create_templates_with_doors();
 	colliders.reserve(128);
+	proc_gen.params.room_scale = 512;
 	proc_gen.generateLevel();
 	proc_gen.printGrid();
 
@@ -90,7 +125,7 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 	scene.transforms.emplace_back();
 	Scene::Transform *player_transform = &scene.transforms.back();
 
-	player_transform->position = glm::vec3(160.0f, 158.0f, 0.0f) / PPU;
+	player_transform->position = glm::vec3(160.0f, 153.0f, 0.0f) / PPU;
 	player.transform = player_transform;
 	player.collider.transform = player_transform;
 
@@ -106,14 +141,6 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 	platform_bb.min = glm::vec3(0.0f, 67.0f, 0.0f);
 	platform_bb.max = glm::vec3(128.0f, 86.0f, 0.0f);
 
-	//addLevelSprite(*platform_sheet, glm::vec2(96.0f, 48.0f), true, {platform_bb});
-	//addLevelSprite(*platform_sheet, glm::vec2(256.0f, 48.0f), true, {platform_bb});
-
-	//addLevelSprite(*decoration_one_sheet, glm::vec2(96.0f, 48.0f), false);
-	//addLevelSprite(*decoration_two_sheet, glm::vec2(256.0f, 48.0f), false);
-	//addLevelSprite(*shelf_sheet, glm::vec2(122.0f, 134.0f), false);
-	addLevelSprite(*barrels_sheet, glm::vec2(265.0f, 134.0f), false);
-	
 	glm::vec3 down_min = glm::vec3(0.0f, 0.0f, 0.0f);
 	glm::vec3 down_max = glm::vec3(gen_params.room_scale, 1.0f, 0.0f);
 
@@ -128,30 +155,38 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 
 	for (size_t i = 0; i < proc_gen.active_rooms.size(); i++)
 	{
-		std::shared_ptr<Room> room =  proc_gen.active_rooms[i];
+		std::shared_ptr<Room> room = proc_gen.active_rooms[i];
 		glm::vec3 pos = glm::vec3(room->world_x, room->world_y, 0.0f);
 
 		std::vector<AABB> level_bbs;
 		level_bbs.reserve(4);
 
-		if (!(room->doors & Doors::Left))  { level_bbs.push_back({left_min, left_max}); }
-		if (!(room->doors & Doors::Right)) { level_bbs.push_back({right_min, right_max}); }
-		if (!(room->doors & Doors::Up))    { level_bbs.push_back({up_min, up_max}); }
-		if (!(room->doors & Doors::Down))  { level_bbs.push_back({down_min, down_max}); }
-
-		std::vector<int> bucket  = get_templates_with_doors(room->doors);
-		if (!bucket.empty()) 
+		if (!(room->doors & Doors::Left))
 		{
-			int pick = proc_gen.getRand(0, (int)(bucket .size() - 1));
-			int template_id = bucket[pick];
-			room->template_id = template_id;
-			drawChunk(get_room_templates(template_id));
+			level_bbs.push_back({left_min, left_max});
+		}
+		if (!(room->doors & Doors::Right))
+		{
+			level_bbs.push_back({right_min, right_max});
+		}
+		if (!(room->doors & Doors::Up))
+		{
+			level_bbs.push_back({up_min, up_max});
+		}
+		if (!(room->doors & Doors::Down))
+		{
+			level_bbs.push_back({down_min, down_max});
 		}
 
-		addLevelSprite(*floor_sheet, glm::vec2(pos), false, level_bbs);
+		std::vector<int> bucket = get_templates_with_doors(room->doors);
+		if (!bucket.empty())
+		{
+			int pick = proc_gen.getRand(0, (int)(bucket.size() - 1));
+			int template_id = bucket[pick];
+			room->template_id = template_id;
+			drawChunk(get_room_templates(template_id), glm::vec2(room->world_x, room->world_y));
+		}
 	}
-	
-	enemies.emplace_back(std::make_unique<DummyEnemy>(glm::vec2(320.0f, 166.0f) / PPU, *dummy_sheet));
 
 	// Create low res framebuffer for rendering
 	glGenTextures(1, &color_texture);
@@ -231,22 +266,6 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			player.jump_buffer_timer = player.jump_buffer_duration;
 			// if (honk_oneshot) honk_oneshot->stop();
 			// honk_oneshot = Sound::play_3D(*honk_sample, 0.3f, glm::vec3(4.6f, -7.8f, 6.9f)); //hardcoded position of front of car, from blender
-		}
-		else if (evt.key.key == SDLK_K)
-		{
-			if (!evt.key.repeat)
-			{
-				for (auto const &enemy : enemies)
-				{
-					if (enemy->state != EnemyState::Dead)
-					{
-						enemy->takeDamage(10);
-						break;
-					}
-				}
-			}
-
-			return true;
 		}
 	}
 	else if (evt.type == SDL_EVENT_KEY_UP)
@@ -345,18 +364,27 @@ void PlayMode::update(float elapsed)
 
 	runCollision(player, colliders);
 
-	if (input_dir.x < 0.0f) facing_left = true; 
-	else if (input_dir.x > 0.0f) facing_left = false; 
+	if (input_dir.x < 0.0f)
+		facing_left = true;
+	else if (input_dir.x > 0.0f)
+		facing_left = false;
 
 	// Player Animation Update
 
-	if (!player.is_grounded) {
+	if (!player.is_grounded)
+	{
 		player_anim.play(player.velocity.y > 0.0f ? "Jump" : "Falling");
-	} else if (std::abs(player.velocity.x) > 0.5f) {
+	}
+	else if (std::abs(player.velocity.x) > 0.5f)
+	{
 		player_anim.play("Walk");
-	} else if (player_anim.row == main_character_sheet->row_index("Walk")) {
+	}
+	else if (player_anim.row == main_character_sheet->row_index("Walk"))
+	{
 		player_anim.play("Walk2Idle");
-	} else if (player_anim.row != main_character_sheet->row_index("Walk2Idle") || player_anim.finished) {
+	}
+	else if (player_anim.row != main_character_sheet->row_index("Walk2Idle") || player_anim.finished)
+	{
 		player_anim.play("Idle");
 	}
 	player_anim.update(elapsed);
@@ -368,9 +396,8 @@ void PlayMode::update(float elapsed)
 
 	// replaced enemy erase statement and moved outside of loop
 	// because it would cause a bug when the dummy died
-	std::erase_if(enemies, [](auto const &e) {
-		 return e->state == EnemyState::Dead; 
-	});
+	std::erase_if(enemies, [](auto const &e)
+				  { return e->state == EnemyState::Dead; });
 
 	if (player.health > 0)
 	{
@@ -413,7 +440,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 {
 	const int fbo_w = PixelWidth + 1;
 	const int fbo_h = PixelHeight + 1;
-	
+
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glViewport(0, 0, fbo_w, fbo_h);
 
@@ -424,7 +451,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	glDisable(GL_BLEND);
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
-	glClearColor(0.00518f, 0.00605f, 0.01096f, 1.0f);
+	glClearColor(0.02518f, 0.01298f, 0.03071f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	const glm::mat4 proj = glm::ortho(0.0f, (float)fbo_w, 0.0f, (float)fbo_h);
@@ -441,24 +468,48 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	const glm::mat4 world_to_clip = view_proj *
 									glm::scale(glm::mat4(1.0f), glm::vec3(PPU, PPU, 1.0f));
 
-	for (StaticSprite const &sprite : level_sprites)
 	{
-		if (sprite.is_fg)
-			continue;
+		DrawSprites blockers(*blocker_sheet, view_proj);
 
-		DrawSprites sprites(*sprite.sheet, view_proj);
-		sprites.draw(0, 0, glm::vec2(sprite.transform->position) * PPU + glm::vec2(static_cast<float>(sprite.sheet->info.cell_size.x / 2u), 0.0f));
+		uint32_t left_row = blocker_sheet->row_index("Left");
+		uint32_t down_row = blocker_sheet->row_index("Down");
+		uint32_t right_row = blocker_sheet->row_index("Right");
+		uint32_t up_row = blocker_sheet->row_index("Up");
+
+		for (StaticSprite const &sprite : level_sprites)
+		{
+			if (sprite.is_fg)
+				continue;
+
+			DrawSprites sprites(*sprite.sheet, view_proj);
+			sprites.draw(0, 0, glm::vec2(sprite.transform->position) * PPU + glm::vec2(static_cast<float>(sprite.sheet->info.cell_size.x / 2u), 0.0f));
+		}
+
+		for (StaticSprite const &sprite : level_sprites)
+		{
+			if (!sprite.is_fg)
+				continue;
+
+			DrawSprites sprites(*sprite.sheet, view_proj);
+			sprites.draw(0, 0, glm::vec2(sprite.transform->position) * PPU + glm::vec2(static_cast<float>(sprite.sheet->info.cell_size.x / 2u), 0.0f));
+		}
+
+		for (const auto &room : proc_gen.active_rooms)
+		{
+
+			if (!(room->doors & Doors::Left))
+				blockers.draw(left_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
+
+			if (!(room->doors & Doors::Down))
+				blockers.draw(down_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
+
+			if (!(room->doors & Doors::Right))
+				blockers.draw(right_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
+
+			if (!(room->doors & Doors::Up))
+				blockers.draw(up_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
+		}
 	}
-
-	for (StaticSprite const &sprite : level_sprites)
-	{
-		if (!sprite.is_fg)
-			continue;
-
-		DrawSprites sprites(*sprite.sheet, view_proj);
-		sprites.draw(0, 0, glm::vec2(sprite.transform->position) * PPU + glm::vec2(static_cast<float>(sprite.sheet->info.cell_size.x / 2u), 0.0f));
-	}
-
 	{ // player
 		AABB box = player.collider.getWorldSpaceAABB();
 		glm::vec2 feet = glm::vec2(player.transform->position.x, box.min.y) * PPU;
@@ -466,7 +517,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		sprites.draw(player_anim.row, player_anim.frame(), feet, facing_left);
 	}
 
-	{ //enemies
+	{ // enemies
 		for (auto const &e : enemies)
 		{
 			AABB box = e->collider.getWorldSpaceAABB();
@@ -476,45 +527,11 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		}
 	}
 
-	{
-		DrawLines lines(world_to_clip);
-
-		AABB world_player_aabb = player.collider.getWorldSpaceAABB();
-		glm::vec3 player_center = (world_player_aabb.min + world_player_aabb.max) * 0.5f;
-		glm::vec3 player_extents = (world_player_aabb.max - world_player_aabb.min) * 0.5f;
-
-		glm::mat4x3 player_draw_transform = glm::translate(glm::mat4(1.0f), player_center) * glm::scale(glm::mat4(1.0f), player_extents);
-
-		lines.draw_box(player_draw_transform, glm::u8vec4(0, 255, 0, 255));
-
-		for (auto const &enemy : enemies)
-		{
-			if (enemy->state == EnemyState::Dead)
-				continue;
-
-			AABB world_enemy_aabb = enemy->collider.getWorldSpaceAABB();
-
-			glm::vec3 enemy_center = (world_enemy_aabb.min + world_enemy_aabb.max) * 0.5f;
-			glm::vec3 enemy_extents = (world_enemy_aabb.max - world_enemy_aabb.min) * 0.5f;
-
-			glm::mat4x3 enemy_draw_transform = glm::translate(glm::mat4(1.0f), enemy_center) * glm::scale(glm::mat4(1.0f), enemy_extents);
-
-			lines.draw_box(enemy_draw_transform, glm::u8vec4(255, 180, 0, 255));
-
-			lines.draw_text(
-				std::to_string(enemy->health),
-				glm::vec3(world_enemy_aabb.min.x, world_enemy_aabb.max.y + 0.2f, 0.0f),
-				glm::vec3(0.3f, 0.0f, 0.0f),
-				glm::vec3(0.0f, 0.3f, 0.0f),
-				glm::u8vec4(255, 255, 255, 255));
-		}
-	}
-
 	float scale_x = (float)drawable_size.x / PixelWidth;
 	float scale_y = (float)drawable_size.y / PixelHeight;
 
 	glm::vec2 exact_px = glm::vec2(camera->transform->position) * PPU;
-	glm::vec2 frac = exact_px - cam_pos_ppu; 
+	glm::vec2 frac = exact_px - cam_pos_ppu;
 
 	GLint offset_x = static_cast<GLint>(std::floor(frac.x * scale_x));
 	GLint offset_y = static_cast<GLint>(std::floor(frac.y * scale_y));
@@ -542,10 +559,27 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glEnable(GL_FRAMEBUFFER_SRGB);
 
+	{ // Health HUD: fixed screen coordinates.
+		const glm::mat4 ui_proj = glm::ortho(0.0f, static_cast<float>(PixelWidth), 0.0f, static_cast<float>(PixelHeight));
+
+		constexpr float gap = 2.0f;
+		constexpr float margin = 8.0f;
+
+		float x = margin + 8.0f /* half size to anchor at center*/;
+		float bot = static_cast<float>(PixelHeight) - margin - 16.0f;
+		DrawSprites hearts(*heart_sheet, ui_proj);
+
+		for (int i = player.max_health - 1; i >= 0; --i)
+		{
+			hearts.draw(0, (player.max_health - i - 1 < player.health) ? 0u : 1u, glm::vec2(x, bot));
+			x += 16.0f + gap;
+		}
+	}
+
 	GL_ERRORS();
 }
 
-Scene::Transform *PlayMode::addLevelSprite(SpriteSheet const &sheet, glm::vec2 bl, bool is_fg, std::vector<AABB> const& obj_AABBs)
+Scene::Transform *PlayMode::addLevelSprite(SpriteSheet const &sheet, glm::vec2 bl, bool is_fg, std::vector<AABB> const &obj_AABBs)
 {
 	scene.transforms.emplace_back();
 	Scene::Transform *sprite_transform = &scene.transforms.back();
@@ -574,25 +608,45 @@ Scene::Transform *PlayMode::addLevelSprite(SpriteSheet const &sheet, glm::vec2 b
 	return sprite_transform;
 }
 
-void PlayMode::drawChunk(RoomTemplate template_room)
+void PlayMode::drawChunk(RoomTemplate template_room, glm::vec2 room_origin)
 {
-	//aabbs and sprites could be defined somewhwere else globally for this to be less cluttered
-	AABB platform_bb;
-	platform_bb.min = glm::vec3(0.0f, 67.0f, 0.0f);
-	platform_bb.max = glm::vec3(128.0f, 86.0f, 0.0f);
-
-	for (auto& prop : template_room.props)
 	{
-		//need to add switch case statements based on props type
+		std::vector<AABB> room_colliders = template_room.colliders;
 
-		//also may need to pass in the world position to offset the local position
-		addLevelSprite(*platform_sheet, prop.local_px, prop.is_fg, {platform_bb});
+		if (!(template_room.doors & Doors::Left))
+
+			room_colliders.push_back({glm::vec3(0.0f, 64.0f, 0.0f), glm::vec3(16.0f, 128.0f, 0.0f)});
+
+		if (!(template_room.doors & Doors::Right))
+
+			room_colliders.push_back({glm::vec3(496.0f, 64.0f, 0.0f), glm::vec3(512.0f, 128.0f, 0.0f)});
+
+		if (!(template_room.doors & Doors::Down))
+
+			room_colliders.push_back({glm::vec3(224.0f, 0.0f, 0.0f), glm::vec3(288.0f, 48.0f, 0.0f)});
+
+		if (!(template_room.doors & Doors::Up))
+
+			room_colliders.push_back({glm::vec3(240.0f, 496.0f, 0.0f), glm::vec3(272.0f, 512.0f, 0.0f)});
+
+		addLevelSprite(*default_room_sheet, room_origin, false, room_colliders);
 	}
 
-	/*
-	for (auto& enemy : template_room.enemies)
+	for (auto &enemy : template_room.enemies)
 	{
-		//spawn enemies
+		const glm::vec2 enemy_position = (room_origin + enemy.local_px) / PPU;
+		switch (enemy.type)
+		{
+		case EnemyType::Dummy:
+			enemies.emplace_back(std::make_unique<DummyEnemy>(enemy_position, *dummy_sheet));
+			break;
+
+		case EnemyType::Rat:
+			enemies.emplace_back(std::make_unique<RatEnemy>(enemy_position, *rat_sheet));
+			break;
+
+		case EnemyType::ExplodingRat:
+			break;
+		}
 	}
-	*/
 }

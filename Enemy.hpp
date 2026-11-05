@@ -6,6 +6,8 @@
 enum class EnemyType : uint8_t
 {
     Dummy = 0,
+    Rat = 1,
+    ExplodingRat = 2,
 };
 
 enum class EnemyState : uint8_t
@@ -42,5 +44,5 @@ struct Enemy
     void takeDamage(int amount);
 
 private:
-    virtual void updateBehavior(float dt) = 0;
+    virtual void updateBehavior(float dt, const std::vector<Collider> &col_list) = 0;
 };

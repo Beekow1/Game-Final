@@ -9,7 +9,7 @@ DummyEnemy::DummyEnemy(glm::vec2 enemy_position, SpriteSheet const &sheet)
     collider.local_aabb.max = glm::vec3(0.5f, 0.5f, 0.0f);
 }
 
-void DummyEnemy::updateBehavior(float dt)
+void DummyEnemy::updateBehavior(float dt, const std::vector<Collider> &)
 {
     velocity.x = 0.0f;
 }

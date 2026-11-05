@@ -15,6 +15,8 @@ struct RoomTemplate
     int doors;
     std::vector<PropDef>  props;
     std::vector<EnemyDef> enemies;
+    std::vector<AABB> colliders;
+        
 };
 
 void create_room_templates();

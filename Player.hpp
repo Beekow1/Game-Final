@@ -68,7 +68,8 @@ struct Player
     float move_lock = 1.0f;
 
     // combat
-    int health = 100;
+    int max_health = 3;
+    int health = 3;
     float i_frame_time = 0.6f;
     float i_timer = 0.0f;
 

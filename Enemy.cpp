@@ -12,6 +12,8 @@ Enemy::Enemy(EnemyType enemy_type, glm::vec2 enemy_position, SpriteSheet const &
 
     collider.local_aabb.min = glm::vec3(-0.5f, -0.5f, 0.0f);
     collider.local_aabb.max = glm::vec3(0.5f, 0.5f, 0.0f);
+
+    collider.layer = CollisionLayer::Enemy;
 }
 
 void Enemy::update(float dt, const std::vector<Collider> &col_list)
@@ -19,7 +21,7 @@ void Enemy::update(float dt, const std::vector<Collider> &col_list)
     if (state == EnemyState::Dead)
         return;
 
-    updateBehavior(dt);
+    updateBehavior(dt, col_list);
 
     if (state == EnemyState::Dead)
         return;
@@ -38,7 +40,7 @@ void Enemy::update(float dt, const std::vector<Collider> &col_list)
 
     for (Collider const &obstacle : col_list)
     {
-        if (!shouldCollide(collider, obstacle))
+        if (obstacle.layer != CollisionLayer::Level || !shouldCollide(collider, obstacle))
         {
             continue;
         }
@@ -62,7 +64,8 @@ void Enemy::update(float dt, const std::vector<Collider> &col_list)
             velocity.y = 0.0f;
         }
     }
-    if (anim.finished) anim.play("Idle");
+    if (anim.finished)
+        anim.play("Idle");
     anim.update(dt);
 }
 
@@ -85,8 +88,14 @@ void Enemy::takeDamage(int amount)
         return;
 
     health -= amount;
-    anim.play("Hurt", true); 
-
+    for (auto const &row : anim.sheet.info.rows)
+    {
+        if (row.name == "Hurt")
+        {
+            anim.play("Hurt", true);
+            break;
+        }
+    }
 
     if (health <= 0)
     {
