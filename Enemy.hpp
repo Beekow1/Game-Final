@@ -33,7 +33,7 @@ struct Enemy
 
     glm::vec2 velocity = glm::vec2(0.0f);
     int health = 100;
-    int contact_damage = 10;
+    int contact_damage = 1;
     bool grounded = false;
 
     SpriteAnimator anim;

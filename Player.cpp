@@ -349,3 +349,27 @@ void runCollision(Player &player, const std::vector<Collider> &col_list)
         }
     }
 }
+
+void Player::reset(glm::vec2 position)
+{
+    transform->position = glm::vec3(position, 0.0f);
+    velocity = glm::vec2(0.0f);
+
+    health = max_health;
+    i_timer = 0.0f;
+
+    is_dashing = false;
+    is_attacking = false;
+    dash_timer = 0.0f;
+    tech_timer = 0.0f;
+    cur_dash_count = max_dash_count;
+
+    coyote_timer = 0.0f;
+    jump_buffer_timer = 0.0f;
+    jump_not_wasted = false;
+
+    move_lock = 1.0f;
+    move_lock_time = 0.0f;
+    tech_state = TechState::Default;
+    jump_state = JumpState::Falling;
+}

@@ -18,6 +18,15 @@
 
 #include <random>
 
+struct RoomLayout
+{
+	glm::uvec2 size_px = glm::uvec2(0);
+	std::vector<AABB> solids;
+	glm::vec2 spawn_px = glm::vec2(0.0f);
+	std::vector<glm::vec2> dummy_px;
+	glm::vec2 exit_px = glm::vec2(0.0f);
+};
+
 Load<Sound::Sample> dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const *
 									   { return new Sound::Sample(data_path("dusty-floor.opus")); });
 
@@ -87,25 +96,157 @@ static SpriteSheet *load_static_image(std::string const &file_path, glm::uvec2 s
 													 .rows = {
 														 {"still", 1, 1.0f, true}}});
 }
-
+Load<SpriteSheet> tutorial_sheet(LoadTagDefault, []() -> SpriteSheet const *
+								 { return load_static_image("sprites/tutorial-room.png", glm::uvec2(1440, 272)); });
 Load<SpriteSheet> platform_sheet(LoadTagDefault, []() -> SpriteSheet const *
 								 { return load_static_image("Platform.png", glm::uvec2(128, 86)); });
-
-Load<SpriteSheet> decoration_one_sheet(LoadTagDefault, []() -> SpriteSheet const *
-									   { return load_static_image("Platform Decoration 1.png", glm::uvec2(128, 86)); });
-
-Load<SpriteSheet> decoration_two_sheet(LoadTagDefault, []() -> SpriteSheet const *
-									   { return load_static_image("Platform Decoration 2.png", glm::uvec2(128, 86)); });
-
-Load<SpriteSheet> barrels_sheet(LoadTagDefault, []() -> SpriteSheet const *
-								{ return load_static_image("Drink Barrels.png", glm::uvec2(112, 32)); });
 
 // dictates how big the room is in addition to roomscale in gen_params
 Load<SpriteSheet> default_room_sheet(LoadTagDefault, []() -> SpriteSheet const *
 									 { return load_static_image("Default Room Layout.png", glm::uvec2(512, 512)); });
 
-Load<SpriteSheet> shelf_sheet(LoadTagDefault, []() -> SpriteSheet const *
-							  { return load_static_image("Bottle Shelf.png", glm::uvec2(64, 80)); });
+// Control hints for the tutorial room
+struct TutorialSign
+{
+	glm::vec2 pos;
+	float size;
+	char const *text;
+};
+
+static const std::vector<TutorialSign> tutorial_signs = {
+	{glm::vec2(3.0f, 8.0f), 1.0f, "A / D : MOVE"},
+	{glm::vec2(7.0f, 9.5f), 1.0f, "SPACE : JUMP"},
+	{glm::vec2(13.0f, 12.0f), 1.0f, "HOLD SPACE TO JUMP HIGHER"},
+	{glm::vec2(36.0f, 12.5f), 1.0f, "DASH (J) INTO ENEMIES TO HIT THEM"},
+	{glm::vec2(50.0f, 8.2f), 1.0f, "WAVEDASH: S + A/D + J ON THE GROUND, THEN SPACE"},
+	{glm::vec2(86.1f, 7.4f), 1.0f, "EXIT"},
+};
+
+static RoomLayout load_room_layout(std::string const &path)
+{
+	constexpr uint32_t Tile = 16;
+
+	RoomLayout layout;
+	std::vector<glm::u8vec4> pixels;
+	load_png(path, &layout.size_px, &pixels, LowerLeftOrigin);
+
+	if (layout.size_px.x % Tile != 0 || layout.size_px.y % Tile != 0)
+	{
+		throw std::runtime_error("Room layout '" + path + "' is not a multiple of 16px.");
+	}
+
+	uint32_t tiles_x = layout.size_px.x / Tile;
+	uint32_t tiles_y = layout.size_px.y / Tile;
+
+	for (uint32_t ty = 0; ty < tiles_y; ty++)
+	{
+		bool in_run = false;
+		uint32_t run_start = 0;
+
+		for (uint32_t tx = 0; tx <= tiles_x; tx++)
+		{
+			bool solid = false;
+
+			if (tx < tiles_x)
+			{
+				glm::u8vec4 c = pixels[(ty * Tile + Tile / 2) * layout.size_px.x + (tx * Tile + Tile / 2)];
+				glm::vec2 feet = glm::vec2(float(tx * Tile + Tile / 2), float(ty * Tile));
+
+				if (c.a == 0)
+				{
+				}
+				else if (c.r == 0 && c.g == 0 && c.b == 0)
+				{
+					solid = true;
+				}
+				else if (c.r == 0 && c.g == 255 && c.b == 0)
+				{
+					layout.spawn_px = feet;
+				}
+				else if (c.r == 255 && c.g == 0 && c.b == 0)
+				{
+					layout.dummy_px.push_back(feet);
+				}
+				else if (c.r == 0 && c.g == 0 && c.b == 255)
+				{
+					layout.exit_px = feet;
+				}
+				else
+				{
+					throw std::runtime_error("Uknown color in room layout at tile (" + std::to_string(tx) + ", " + std::to_string(ty) + ").");
+				}
+			}
+
+			if (solid && !in_run)
+			{
+				in_run = true;
+				run_start = tx;
+			}
+			else if (!solid && in_run)
+			{
+				in_run = false;
+				AABB box;
+				box.min = glm::vec3(float(run_start * Tile), float(ty * Tile), 0.0f);
+				box.max = glm::vec3(float(tx * Tile), float((ty + 1) * Tile), 0.0f);
+				layout.solids.push_back(box);
+			}
+		}
+	}
+
+	return layout;
+}
+
+void PlayMode::respawn()
+{
+	player.reset(spawn_pos);
+	enemies.clear();
+	if (use_tutorial)
+	{
+		for (glm::vec2 position : dummy_spawns)
+		{
+			for (glm::vec2 p : dummy_spawns)
+			{
+				enemies.emplace_back(std::make_unique<DummyEnemy>(p, *dummy_sheet));
+			}
+		}
+	}
+
+	else
+	{
+		for (const auto &room : proc_gen.active_rooms)
+		{
+			const auto &room_template =
+				get_room_templates(static_cast<int>(room->template_id));
+
+			const glm::vec2 origin(room->world_x, room->world_y);
+
+			for (const auto &spawn : room_template.enemies)
+			{
+				const glm::vec2 position =
+					(origin + spawn.local_px) / PPU;
+
+				switch (spawn.type)
+				{
+				case EnemyType::Dummy:
+					enemies.emplace_back(std::make_unique<DummyEnemy>(position, *dummy_sheet));
+					break;
+
+				case EnemyType::Rat:
+					enemies.emplace_back(std::make_unique<RatEnemy>(position, *rat_sheet));
+					break;
+
+				case EnemyType::ExplodingRat:
+					break;
+				}
+			}
+		}
+	}
+
+	cam_pos = spawn_pos;
+	camera->transform->position = glm::vec3(cam_pos, 0.0f);
+
+	player_dead = false;
+}
 
 PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 {
@@ -137,56 +278,48 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 
 	colliders.emplace_back(player.collider);
 
-	AABB platform_bb;
-	platform_bb.min = glm::vec3(0.0f, 67.0f, 0.0f);
-	platform_bb.max = glm::vec3(128.0f, 86.0f, 0.0f);
-
-	glm::vec3 down_min = glm::vec3(0.0f, 0.0f, 0.0f);
-	glm::vec3 down_max = glm::vec3(gen_params.room_scale, 1.0f, 0.0f);
-
-	glm::vec3 up_min = glm::vec3(0.0f, 511.0f, 0.0f);
-	glm::vec3 up_max = glm::vec3(gen_params.room_scale, gen_params.room_scale, 0.0f);
-
-	glm::vec3 left_min = glm::vec3(0.0f, 0.0f, 0.0f);
-	glm::vec3 left_max = glm::vec3(1.0f, gen_params.room_scale, 0.0f);
-
-	glm::vec3 right_min = glm::vec3(511.0f, 0.0f, 0.0f);
-	glm::vec3 right_max = glm::vec3(gen_params.room_scale, gen_params.room_scale, 0.0f);
-
-	for (size_t i = 0; i < proc_gen.active_rooms.size(); i++)
+	if (use_tutorial)
 	{
-		std::shared_ptr<Room> room = proc_gen.active_rooms[i];
-		glm::vec3 pos = glm::vec3(room->world_x, room->world_y, 0.0f);
+		RoomLayout tutorial = load_room_layout(data_path("sprites/tutorial-layout.png"));
+		addLevelSprite(*tutorial_sheet, glm::vec2(0.0f), false, tutorial.solids);
 
-		std::vector<AABB> level_bbs;
-		level_bbs.reserve(4);
+		auto feet_to_center = [](glm::vec2 feet_px)
+		{ return feet_px / PPU + glm::vec2(0.0f, 0.5f); };
 
-		if (!(room->doors & Doors::Left))
+		room_size = glm::vec2(tutorial.size_px) / PPU;
+		spawn_pos = feet_to_center(tutorial.spawn_px);
+		for (glm::vec2 d : tutorial.dummy_px)
 		{
-			level_bbs.push_back({left_min, left_max});
-		}
-		if (!(room->doors & Doors::Right))
-		{
-			level_bbs.push_back({right_min, right_max});
-		}
-		if (!(room->doors & Doors::Up))
-		{
-			level_bbs.push_back({up_min, up_max});
-		}
-		if (!(room->doors & Doors::Down))
-		{
-			level_bbs.push_back({down_min, down_max});
-		}
-
-		std::vector<int> bucket = get_templates_with_doors(room->doors);
-		if (!bucket.empty())
-		{
-			int pick = proc_gen.getRand(0, (int)(bucket.size() - 1));
-			int template_id = bucket[pick];
-			room->template_id = template_id;
-			drawChunk(get_room_templates(template_id), glm::vec2(room->world_x, room->world_y));
+			dummy_spawns.push_back(feet_to_center(d));
 		}
 	}
+	else
+	{ // room generation
+		create_room_templates();
+		create_templates_with_doors();
+		proc_gen.params.room_scale = 512;
+		proc_gen.generateLevel();
+		proc_gen.printGrid();
+
+		spawn_pos = glm::vec2(160.0f, 153.0f) / PPU;
+
+		for (size_t i = 0; i < proc_gen.active_rooms.size(); i++)
+		{
+			std::shared_ptr<Room> room = proc_gen.active_rooms[i];
+			glm::vec3 pos = glm::vec3(room->world_x, room->world_y, 0.0f);
+
+			std::vector<int> bucket = get_templates_with_doors(room->doors);
+			if (!bucket.empty())
+			{
+				int pick = proc_gen.getRand(0, (int)(bucket.size() - 1));
+				int template_id = bucket[pick];
+				room->template_id = template_id;
+				drawChunk(get_room_templates(template_id), glm::vec2(room->world_x, room->world_y));
+			}
+		}
+	}
+
+	respawn();
 
 	// Create low res framebuffer for rendering
 	glGenTextures(1, &color_texture);
@@ -266,6 +399,14 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			player.jump_buffer_timer = player.jump_buffer_duration;
 			// if (honk_oneshot) honk_oneshot->stop();
 			// honk_oneshot = Sound::play_3D(*honk_sample, 0.3f, glm::vec3(4.6f, -7.8f, 6.9f)); //hardcoded position of front of car, from blender
+		}
+		else if (evt.key.key == SDLK_R)
+		{
+			if (player_dead)
+			{
+				respawn();
+			}
+			return true;
 		}
 	}
 	else if (evt.type == SDL_EVENT_KEY_UP)
@@ -351,11 +492,26 @@ void PlayMode::update(float elapsed)
 
 	cam_pos = glm::mix(glm::vec2(camera->transform->position), target_cam_pos, smoothT);
 
+	if (use_tutorial)
+	{
+		glm::vec2 half_view = glm::vec2(PixelWidth, PixelHeight) * 0.5f / PPU;
+		cam_pos = glm::clamp(cam_pos, half_view, glm::max(room_size - half_view, half_view));
+	}
+
 	{ // update listener to camera position:
 		glm::mat4x3 frame = camera->transform->make_parent_from_local();
 		glm::vec3 frame_right = frame[0];
 		glm::vec3 frame_at = frame[3];
 		Sound::listener.set_position_right(frame_at, frame_right, 1.0f / 60.0f);
+	}
+
+	if (!player_dead && (player.health <= 0 || player.transform->position.y < kill_y))
+	{
+		player_dead = true;
+	}
+	if (player_dead)
+	{
+		return;
 	}
 
 	player.move(input_dir, elapsed);
@@ -493,21 +649,23 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			DrawSprites sprites(*sprite.sheet, view_proj);
 			sprites.draw(0, 0, glm::vec2(sprite.transform->position) * PPU + glm::vec2(static_cast<float>(sprite.sheet->info.cell_size.x / 2u), 0.0f));
 		}
-
-		for (const auto &room : proc_gen.active_rooms)
+		if (!use_tutorial)
 		{
+			for (const auto &room : proc_gen.active_rooms)
+			{
 
-			if (!(room->doors & Doors::Left))
-				blockers.draw(left_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
+				if (!(room->doors & Doors::Left))
+					blockers.draw(left_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
 
-			if (!(room->doors & Doors::Down))
-				blockers.draw(down_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
+				if (!(room->doors & Doors::Down))
+					blockers.draw(down_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
 
-			if (!(room->doors & Doors::Right))
-				blockers.draw(right_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
+				if (!(room->doors & Doors::Right))
+					blockers.draw(right_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
 
-			if (!(room->doors & Doors::Up))
-				blockers.draw(up_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
+				if (!(room->doors & Doors::Up))
+					blockers.draw(up_row, 0, glm::vec2(room->world_x + 256.0f, room->world_y));
+			}
 		}
 	}
 	{ // player
@@ -524,6 +682,59 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			glm::vec2 feet = glm::vec2(e->transform.position.x, box.min.y) * PPU;
 			DrawSprites sprites(e->anim.sheet, view_proj);
 			sprites.draw(e->anim.row, e->anim.frame(), feet, e->facing_left);
+		}
+	}
+
+	{
+		DrawLines lines(world_to_clip);
+
+		if (use_tutorial)
+		{
+			for (TutorialSign const &sign : tutorial_signs)
+			{
+				lines.draw_text(sign.text,
+								glm::vec3(sign.pos, 0.0f),
+								glm::vec3(sign.size, 0.0f, 0.0f), glm::vec3(0.0f, sign.size, 0.0f),
+								glm::u8vec4(255, 225, 160, 255));
+			}
+		}
+
+		AABB world_player_aabb = player.collider.getWorldSpaceAABB();
+		glm::vec3 player_center = (world_player_aabb.min + world_player_aabb.max) * 0.5f;
+		glm::vec3 player_extents = (world_player_aabb.max - world_player_aabb.min) * 0.5f;
+
+		glm::mat4x3 player_draw_transform = glm::translate(glm::mat4(1.0f), player_center) * glm::scale(glm::mat4(1.0f), player_extents);
+
+		lines.draw_box(player_draw_transform, glm::u8vec4(0, 255, 0, 255));
+
+		for (auto const &enemy : enemies)
+		{
+			if (enemy->state == EnemyState::Dead)
+				continue;
+
+			AABB world_enemy_aabb = enemy->collider.getWorldSpaceAABB();
+
+			glm::vec3 enemy_center = (world_enemy_aabb.min + world_enemy_aabb.max) * 0.5f;
+			glm::vec3 enemy_extents = (world_enemy_aabb.max - world_enemy_aabb.min) * 0.5f;
+
+			glm::mat4x3 enemy_draw_transform = glm::translate(glm::mat4(1.0f), enemy_center) * glm::scale(glm::mat4(1.0f), enemy_extents);
+
+			lines.draw_box(enemy_draw_transform, glm::u8vec4(255, 180, 0, 255));
+
+			lines.draw_text(
+				std::to_string(enemy->health),
+				glm::vec3(world_enemy_aabb.min.x, world_enemy_aabb.max.y + 0.2f, 0.0f),
+				glm::vec3(0.3f, 0.0f, 0.0f),
+				glm::vec3(0.0f, 0.3f, 0.0f),
+				glm::u8vec4(255, 255, 255, 255));
+		}
+
+		if (player_dead)
+		{
+			lines.draw_text("PRESS R TO RESTART",
+							glm::vec3(cam_pos.x - 3.0f, cam_pos.y + 2.0f, 0.0f),
+							glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+							glm::u8vec4(255, 255, 255, 255));
 		}
 	}
 
