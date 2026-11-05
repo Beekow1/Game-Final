@@ -69,7 +69,7 @@ struct Player
 
     // combat
     int max_health = 3;
-    int health = 3;
+    int health = max_health;
     float i_frame_time = 0.6f;
     float i_timer = 0.0f;
 
@@ -79,7 +79,7 @@ struct Player
     float hurt_knockback_bounce = 5.0f;
 
     float damage_control_lock = 0.06f;
-    
+
     // states
     glm::vec2 velocity = glm::vec2(0.0f);
     glm::vec2 latest_dash_dir = glm::vec2(0.0f);

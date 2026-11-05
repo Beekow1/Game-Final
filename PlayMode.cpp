@@ -250,12 +250,7 @@ void PlayMode::respawn()
 
 PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 {
-	create_room_templates();
-	create_templates_with_doors();
 	colliders.reserve(128);
-	proc_gen.params.room_scale = 512;
-	proc_gen.generateLevel();
-	proc_gen.printGrid();
 
 	scene.transforms.emplace_back();
 	Scene::Transform *camera_transform = &scene.transforms.back();

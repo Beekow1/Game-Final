@@ -41,7 +41,7 @@ struct PlayMode : Mode
 	} left, right, down, up, J;
 
 	// level / respawn
-	bool use_tutorial = true;
+	bool use_tutorial = false;
 	glm::vec2 room_size = glm::vec2(0.0f); // camera clamp bounds
 	glm::vec2 spawn_pos = glm::vec2(0.0f); // player center
 	std::vector<glm::vec2> dummy_spawns;   // enemy centers
