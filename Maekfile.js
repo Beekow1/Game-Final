@@ -145,6 +145,7 @@ const game_names = [
 	maek.CPP('Player.cpp'),
 	maek.CPP('ProcGen.cpp'),
 	maek.CPP('Collider.cpp'),
+	maek.CPP('Juice.cpp'),
 	maek.CPP('main.cpp'),
 	maek.CPP('LitColorTextureProgram.cpp'),
 	maek.CPP('RoomTemplate.cpp'),

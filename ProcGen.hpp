@@ -37,10 +37,10 @@ struct GenParams
 {
     int rows = 10;
     int cols = 10;
-    size_t path_len = 10;
+    size_t path_len = 25;
     int edge_buf = 2;
     unsigned int seed = 42;
-    float straightness_bias = 0.65f;
+    float straightness_bias = 1.0f;
 
     float room_scale = 512.0f;
 };
@@ -73,6 +73,8 @@ struct ProcGen
     }
 
     void generateLevel();
+
+    void addRandomRoom(int door);
 
     std::vector<int> validNeighbours(int x, int y);
 

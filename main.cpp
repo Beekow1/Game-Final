@@ -188,9 +188,9 @@ int main(int argc, char **argv) {
 			Mode::current->update(elapsed);
 			if (!Mode::current) break;
 		}
-
-		{ //(3) call the current mode's "draw" function to produce output:
 		
+		{ //(3) call the current mode's "draw" function to produce output:
+			
 			Mode::current->draw(drawable_size);
 		}
 

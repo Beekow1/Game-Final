@@ -132,3 +132,68 @@ std::vector<int> ProcGen::validNeighbours(int x, int y)
 
     return valid_dir;
 }
+
+void ProcGen::addRandomRoom(int door)
+{
+    glm::vec2 check_dir = glm::vec2(0.0f);
+
+    if (door == Doors::Right || door == Doors::Left)
+    {
+        (door == Doors::Right) ? check_dir = glm::vec2(1.0f, 0.0f) : check_dir = glm::vec2(-1.0f, 0.0f);
+    }
+    if (door == Doors::Up || door == Doors::Down)
+    {
+        (door == Doors::Up) ? check_dir = glm::vec2(0.0f, 1.0f) : check_dir = glm::vec2(0.0f, -1.0f);
+    }
+
+    int check_dx = static_cast<int>(check_dir.x);
+    int check_dy = static_cast<int>(check_dir.y);
+
+    int start_x = (check_dx < 0) ? -check_dx : 0;
+    int end_x   = (check_dx > 0) ? params.cols - check_dx : params.cols;
+
+    int start_y = (check_dy < 0) ? -check_dy : 0;
+    int end_y   = (check_dy > 0) ? params.rows - check_dy : params.rows;
+
+    std::vector<GridNode> candidate_rooms;
+    std::cout << check_dx << ", " << check_dy << std::endl;
+
+    for (int y = start_y; y < end_y; y++)
+    {
+        for (int x = start_x; x < end_x; x++)
+        {
+            if (getNode(x + check_dx, y + check_dy).occupied && !getNode(x, y).occupied)
+            {
+                candidate_rooms.push_back(getNode(x + check_dx, y + check_dy));
+            }
+        }
+    }
+
+    if (candidate_rooms.empty()) { return; }
+
+    int k = getRand(0, (int)candidate_rooms.size() - 1);
+
+    GridNode& existing = getNode(candidate_rooms[k].pos_x, candidate_rooms[k].pos_y);
+    
+    int new_x = existing.pos_x - check_dx;
+    int new_y = existing.pos_y - check_dy;
+    GridNode& new_node = getNode(new_x, new_y);
+
+    GridNode* start = nullptr;
+    for (int y = 0; y < params.rows; y++)
+    {
+        for (int x = 0; x < params.cols; x++)
+        {
+            if (getNode(x, y).start) { start = &getNode(x, y); }
+        }
+    }
+
+    new_node.occupied = true;
+    new_node.pos_x = new_x;
+    new_node.pos_y = new_y;
+    addRoom(new_node, *start);
+
+    int opposite = ((door << 2) | (door >> 2)) & 0xF;
+    existing.room->doors |= opposite;
+    new_node.room->doors |= door; 
+}

@@ -13,6 +13,8 @@
 #include "DummyEnemy.hpp"
 #include "RatEnemy.hpp"
 
+#include "Juice.hpp"
+
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -273,6 +275,8 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 
 	colliders.emplace_back(player.collider);
 
+	Juice::Get().SetCamera(camera);
+
 	if (use_tutorial)
 	{
 		RoomLayout tutorial = load_room_layout(data_path("sprites/tutorial-layout.png"));
@@ -294,6 +298,7 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 		create_templates_with_doors();
 		proc_gen.params.room_scale = 512;
 		proc_gen.generateLevel();
+		proc_gen.addRandomRoom(Doors::Down);
 		proc_gen.printGrid();
 
 		spawn_pos = glm::vec2(160.0f, 153.0f) / PPU;
@@ -459,6 +464,10 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed)
 {
+	elapsed = Juice::Get().checkDeltaTime(elapsed);
+
+	Juice::Get().update(elapsed);
+
 	player.jump_buffer_timer -= elapsed;
 
 	if (!player.is_grounded)
@@ -609,7 +618,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 	camera->transform->position = glm::vec3(cam_pos, 0.0f);
 
-	glm::vec2 cam_pos_ppu = glm::floor(glm::vec2(camera->transform->position) * PPU);
+	glm::vec2 cam_pos_ppu = glm::floor((glm::vec2(camera->transform->position) + camera->shake_extra_pos) * PPU);
 
 	glm::vec2 screen_center = glm::vec2(PixelWidth / 2.0f, PixelHeight / 2.0f);
 	glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(screen_center - cam_pos_ppu, 0.0f));
@@ -663,6 +672,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			}
 		}
 	}
+	
 	{ // player
 		AABB box = player.collider.getWorldSpaceAABB();
 		glm::vec2 feet = glm::vec2(player.transform->position.x, box.min.y) * PPU;
@@ -700,7 +710,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 		glm::mat4x3 player_draw_transform = glm::translate(glm::mat4(1.0f), player_center) * glm::scale(glm::mat4(1.0f), player_extents);
 
-		lines.draw_box(player_draw_transform, glm::u8vec4(0, 255, 0, 255));
+		//lines.draw_box(player_draw_transform, glm::u8vec4(0, 255, 0, 255));
 
 		for (auto const &enemy : enemies)
 		{
@@ -714,7 +724,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 			glm::mat4x3 enemy_draw_transform = glm::translate(glm::mat4(1.0f), enemy_center) * glm::scale(glm::mat4(1.0f), enemy_extents);
 
-			lines.draw_box(enemy_draw_transform, glm::u8vec4(255, 180, 0, 255));
+			//lines.draw_box(enemy_draw_transform, glm::u8vec4(255, 180, 0, 255));
 
 			lines.draw_text(
 				std::to_string(enemy->health),
@@ -736,7 +746,9 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	float scale_x = (float)drawable_size.x / PixelWidth;
 	float scale_y = (float)drawable_size.y / PixelHeight;
 
-	glm::vec2 exact_px = glm::vec2(camera->transform->position) * PPU;
+	//std::cout << camera->shake_extra_pos.x << " " << camera->shake_extra_pos.y << std::endl;
+
+	glm::vec2 exact_px = (glm::vec2(camera->transform->position) + camera->shake_extra_pos) * PPU;
 	glm::vec2 frac = exact_px - cam_pos_ppu;
 
 	GLint offset_x = static_cast<GLint>(std::floor(frac.x * scale_x));

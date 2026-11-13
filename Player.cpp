@@ -187,7 +187,10 @@ void Player::dash(glm::vec2 input_dir)
     velocity = glm::vec2(0.0f);
 
     if (dash_dir.x != 0.0f && dash_dir.y == 0.0f) { jump_state = JumpState::Dashing; }
+    else if (dash_dir.x != 0.0f && dash_dir.y > 0.0f) { jump_state = JumpState::Apex; }
     else { jump_state = JumpState::Jumping; }
+
+    //Juice::Get().hitShake(0.4f, 0.6f, -input_dir, 1.5f);
 
     velocity += dash_dir * dash_force;
     latest_dash_dir = dash_dir;
@@ -260,6 +263,9 @@ void Player::dashBounce()
     cur_dash_count++;
 
     i_timer = std::max(i_timer, dash_attack_grace);
+
+    Juice::Get().addTrauma(0.15f, 0.05f, -velocity);
+    Juice::Get().applyHitStop(0.1f);
 }
 
 bool Player::takeDamage(int amount, glm::vec2 damage_source)
@@ -294,6 +300,9 @@ bool Player::takeDamage(int amount, glm::vec2 damage_source)
     jump_state = JumpState::Jumping;
 
     lockMovement(damage_control_lock);
+    
+    Juice::Get().addTrauma(0.8f, 0.35f, -velocity);
+    Juice::Get().applyHitStop(0.4f);
 
     return true;
 }
@@ -337,7 +346,7 @@ void runCollision(Player &player, const std::vector<Collider> &col_list)
                 {
                     player.dash_timer = 0.0f;
                     player.is_dashing = false;
-                    player.lockMovement(0.1f);
+                    player.lockMovement(0.2f);
                     player.velocity.x *= 1.5f;
                 }
 

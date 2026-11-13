@@ -2,6 +2,7 @@
 #include "Collider.hpp"
 #include "Scene.hpp"
 #include <iostream>
+#include "Juice.hpp"
 
 enum class TechState
 {
@@ -75,8 +76,8 @@ struct Player
 
     float dash_attack_grace = 0.15f;
 
-    float hit_knockback_speed = 8.0f;
-    float hurt_knockback_bounce = 5.0f;
+    float hit_knockback_speed = 25.0f;
+    float hurt_knockback_bounce = 25.0f;
 
     float damage_control_lock = 0.06f;
 

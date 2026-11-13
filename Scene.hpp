@@ -85,6 +85,7 @@ struct Scene {
 		//a 'Camera' attaches camera data to a transform:
 		Camera(Transform *transform_) : transform(transform_) { assert(transform); }
 		Transform * transform;
+		glm::vec2 shake_extra_pos = glm::vec2(0.0f);
 		//NOTE: cameras are directed along their -z axis
 
 		//perspective camera parameters:
