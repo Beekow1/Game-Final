@@ -4,6 +4,7 @@ RatEnemy::RatEnemy(glm::vec2 enemy_position, SpriteSheet const &sheet) : Enemy(E
 {
     health = 25;
     contact_damage = 1;
+    money = 2;
 
     collider.local_aabb.min = glm::vec3(-0.5f, -0.5f, 0.0f);
     collider.local_aabb.max = glm::vec3(0.5f, 0.5f, 0.0f);

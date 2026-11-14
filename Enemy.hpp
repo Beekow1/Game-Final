@@ -1,6 +1,7 @@
 #pragma once
 #include "Collider.hpp"
 #include "SpriteAnimator.hpp"
+#include "GameManager.hpp"
 
 #include <vector>
 enum class EnemyType : uint8_t
@@ -35,6 +36,8 @@ struct Enemy
     int health = 100;
     int contact_damage = 1;
     bool grounded = false;
+
+    int money = 2;
 
     SpriteAnimator anim;
     bool facing_left = false;

@@ -339,6 +339,8 @@ PlayMode::PlayMode() : player_anim(*main_character_sheet, "Idle")
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	GameManager::Get().setQuota((int)(enemies.size()), quota);
 }
 
 PlayMode::~PlayMode()
@@ -734,6 +736,17 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 				glm::u8vec4(255, 255, 255, 255));
 		}
 
+		auto [enemies_killed, quota_enemies] = GameManager::Get().getEnemiesKilledStats();
+		lines.draw_text(std::to_string(enemies_killed) + " / " + std::to_string(quota_enemies),
+							glm::vec3(cam_pos.x - 10.0f, cam_pos.y + 6.5f, 0.0f),
+							glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+							glm::u8vec4(255, 255, 255, 255));
+
+		lines.draw_text(std::to_string(GameManager::Get().getMoney()) + " MONEY",
+							glm::vec3(cam_pos.x + 10.0f, cam_pos.y + 6.5f, 0.0f),
+							glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+							glm::u8vec4(255, 255, 255, 255));
+
 		if (player_dead)
 		{
 			lines.draw_text("PRESS R TO RESTART",
@@ -745,8 +758,6 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 	float scale_x = (float)drawable_size.x / PixelWidth;
 	float scale_y = (float)drawable_size.y / PixelHeight;
-
-	//std::cout << camera->shake_extra_pos.x << " " << camera->shake_extra_pos.y << std::endl;
 
 	glm::vec2 exact_px = (glm::vec2(camera->transform->position) + camera->shake_extra_pos) * PPU;
 	glm::vec2 frac = exact_px - cam_pos_ppu;

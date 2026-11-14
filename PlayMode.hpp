@@ -5,6 +5,7 @@
 
 #include "Player.hpp"
 #include "Enemy.hpp"
+#include "GameManager.hpp"
 
 #include "SpriteAnimator.hpp"
 #include "SpriteSheet.hpp"
@@ -56,6 +57,7 @@ struct PlayMode : Mode
 	Player player;
 	ProcGen proc_gen;
 	GenParams gen_params;
+	float quota = 0.5f;
 
 	std::vector<std::unique_ptr<Enemy>> enemies;
 

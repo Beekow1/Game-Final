@@ -58,7 +58,8 @@ void Player::updatePlayer(float elapsed)
     if (is_dashing && dash_timer <= 0.0f)
     {
         is_dashing = false;
-        velocity.x = std::clamp(velocity.x, -std::abs(latest_dash_dir.x) * dash_end_speed, std::abs(latest_dash_dir.x) * dash_end_speed);
+        //velocity.x = std::clamp(velocity.x, -std::abs(latest_dash_dir.x) * dash_end_speed, std::abs(latest_dash_dir.x) * dash_end_speed);
+        velocity.y = std::clamp(velocity.y, -dash_end_speed, dash_end_speed);
     }
 
     is_attacking = is_dashing || tech_state != TechState::Default;
@@ -184,15 +185,12 @@ void Player::dash(glm::vec2 input_dir)
         cur_dash_count++;
     }
 
-    velocity = glm::vec2(0.0f);
-
     if (dash_dir.x != 0.0f && dash_dir.y == 0.0f) { jump_state = JumpState::Dashing; }
-    else if (dash_dir.x != 0.0f && dash_dir.y > 0.0f) { jump_state = JumpState::Apex; }
-    else { jump_state = JumpState::Jumping; }
+    else { jump_state = JumpState::Apex; }
 
-    //Juice::Get().hitShake(0.4f, 0.6f, -input_dir, 1.5f);
+    jump_state = JumpState::Dashing;
 
-    velocity += dash_dir * dash_force;
+    velocity = dash_dir * dash_force;
     latest_dash_dir = dash_dir;
 }
 
@@ -264,8 +262,8 @@ void Player::dashBounce()
 
     i_timer = std::max(i_timer, dash_attack_grace);
 
-    Juice::Get().addTrauma(0.15f, 0.05f, -velocity);
-    Juice::Get().applyHitStop(0.1f);
+    Juice::Get().addTrauma(0.3f, 0.1f, -velocity);
+    Juice::Get().applyHitStop(0.08f);
 }
 
 bool Player::takeDamage(int amount, glm::vec2 damage_source)

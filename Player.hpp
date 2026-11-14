@@ -46,11 +46,11 @@ struct Player
     float jump_buffer_duration = 0.15f;
     float coyote_duration = 0.1f;
 
-    float dash_force = 20.0f;
+    float dash_force = 22.0f;
     size_t max_dash_count = 1;
 
-    float dash_time = 0.19f;
-    float dash_tech_grace = 0.13f;
+    float dash_time = 0.15f;
+    float dash_tech_grace = 0.15f;
     float dash_timer = 0.0f;
     float tech_timer = 0.0f;
 
@@ -74,7 +74,7 @@ struct Player
     float i_frame_time = 0.6f;
     float i_timer = 0.0f;
 
-    float dash_attack_grace = 0.15f;
+    float dash_attack_grace = 0.2f;
 
     float hit_knockback_speed = 25.0f;
     float hurt_knockback_bounce = 25.0f;

@@ -100,5 +100,6 @@ void Enemy::takeDamage(int amount)
     if (health <= 0)
     {
         setBehaviorState(EnemyState::Dead);
+        GameManager::Get().enemyKilled(money);
     }
 }
