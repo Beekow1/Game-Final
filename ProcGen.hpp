@@ -15,12 +15,16 @@ namespace Doors
     constexpr int Up    = 1 << 3;
 }
 
+enum class RoomKind { Normal, Start, End, Shop };
+
 struct Room
 {
     size_t width = 1, height = 1;
     size_t template_id;
     int doors = Doors::None;
     float world_x = 0.0f, world_y = 0.0f;
+    RoomKind kind = RoomKind::Normal;
+    int grid_x = 0, grid_y = 0;
 };
 
 struct GridNode
@@ -75,6 +79,8 @@ struct ProcGen
     void generateLevel();
 
     void addRandomRoom(int door);
+
+    std::shared_ptr<Room> addShopRoom();
 
     std::vector<int> validNeighbours(int x, int y);
 

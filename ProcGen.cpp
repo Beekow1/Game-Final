@@ -23,8 +23,8 @@ void ProcGen::printGrid()
             }
             else if (getNode(x,y).occupied)
             {
-                
-                std::cout << "%";
+                bool is_shop = getNode(x, y).room && getNode(x,y).room->kind == RoomKind::Shop;
+                std::cout << (is_shop ? "$" : "%");
             }
             else
             {
@@ -98,7 +98,8 @@ void ProcGen::generateLevel()
     }
 
     active_rooms.reserve(node_stack.size());
-    
+    active_rooms.front()->kind = RoomKind::Start; 
+    active_rooms.back()->kind = RoomKind::End;
 }
 
 void ProcGen::addRoom(GridNode& node, GridNode& start)
@@ -108,9 +109,60 @@ void ProcGen::addRoom(GridNode& node, GridNode& start)
     newRoom->world_x = static_cast<float>(node.pos_x - start.pos_x) * params.room_scale;
     newRoom->world_y = static_cast<float>(node.pos_y - start.pos_y) * params.room_scale;
 
+    newRoom->grid_x = node.pos_x; 
+    newRoom->grid_y = node.pos_y;
+
     node.room = newRoom;
 
     active_rooms.push_back(newRoom);
+}
+
+std::shared_ptr<Room> ProcGen::addShopRoom()
+{
+    std::shared_ptr <Room> start_room = nullptr; 
+    for (auto const &r : active_rooms) 
+    {
+        if (r->kind == RoomKind::Start)
+        { 
+            start_room = r;
+            break; 
+        }
+    }
+    if (!start_room) { return nullptr; }
+    GridNode &start = getNode(start_room->grid_x, start_room->grid_y);
+
+    // candidates (only rooms that have the above room free for now)
+    std::vector<std::shared_ptr<Room>> hosts;
+    for (auto const &r : active_rooms)
+    {
+        if (r->kind != RoomKind::Normal) { continue; }
+
+        int above_y = r->grid_y + 1; 
+        if (above_y >= params.rows) { continue; }
+
+        GridNode &above = getNode(r->grid_x, above_y); 
+        if (above.occupied) { continue; }
+
+        hosts.push_back(r);
+    }
+
+    if (hosts.empty()) { return nullptr; }
+
+    std::shared_ptr<Room> host = hosts[getRand(0, (int)hosts.size() - 1)];
+
+    GridNode &node = getNode(host->grid_x, host->grid_y + 1);
+    node.occupied = true; 
+    node.pos_x = host->grid_x; 
+    node.pos_y = host->grid_y + 1; 
+    addRoom(node, start);
+
+    std::shared_ptr<Room> shop = node.room; 
+    shop->kind = RoomKind::Shop;
+
+    host->doors |= Doors::Up; 
+    shop->doors |= Doors::Down;
+
+    return shop;
 }
 
 std::vector<int> ProcGen::validNeighbours(int x, int y)

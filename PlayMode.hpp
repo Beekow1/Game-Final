@@ -23,7 +23,7 @@
 
 struct PlayMode : Mode
 {
-	PlayMode();
+	PlayMode(bool tutorial);
 	virtual ~PlayMode();
 
 	// functions called by main loop:
@@ -47,7 +47,32 @@ struct PlayMode : Mode
 	glm::vec2 spawn_pos = glm::vec2(0.0f); // player center
 	std::vector<glm::vec2> dummy_spawns;   // enemy centers
 	bool player_dead = false;
-	float kill_y = -2.0f; // units below the room's bottom edge
+
+	// death zones
+	std::vector<AABB> death_zones; 
+	float void_y = -2.0f; 
+
+	// shop structure
+	struct ShopSlot
+	{
+		glm::vec2 pos; // world units, lowest point of item
+		int price = 0;
+		int icon = 0;
+		bool sold = false;
+	};
+	std::vector<ShopSlot> shop_slots; 
+	std::optional<AABB> shop_interior; // world units, camera lock
+	glm::vec2 shopkeeper_pos = glm::vec2(0.0f);
+	int hovered_slot = -1; 
+	bool buy_pressed = false;
+	float denied_timer = 0.0f; 
+	float anim_time = 0.0f;
+
+	void buildShop(glm::vec2 origin_px);
+
+	// exit door
+	std::optional<AABB> exit_zone; // world units, empty = no exit 
+
 
 	void respawn();
 

@@ -50,6 +50,8 @@ void create_room_templates()
 
 void create_templates_with_doors()
 {
+    for (auto& bucket : templates_by_doors) bucket.clear();
+
     for (int i = 0; i < room_templates.size(); i++)
     {
         templates_by_doors[room_templates[i].doors].push_back(i);
