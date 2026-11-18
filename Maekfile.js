@@ -140,6 +140,7 @@ const sprites = sprite_names.map(name => maek.COPY(`sprites/${name}.png`, `dist/
 // objFileBase (optional): base name object file to produce (if not supplied, set to options.objDir + '/' + cppFile without the extension)
 //returns objFile: objFileBase + a platform-dependant suffix ('.o' or '.obj')
 const game_names = [
+	maek.CPP('GP26IntroMode.cpp'),
 	maek.CPP('PlayMode.cpp'),
 	maek.CPP('RatEnemy.cpp'),
 	maek.CPP('Player.cpp'),

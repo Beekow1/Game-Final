@@ -7,6 +7,9 @@
 //For asset loading:
 #include "Load.hpp"
 
+// Intro animation
+#include "GP26IntroMode.hpp"
+
 //For sound init:
 #include "Sound.hpp"
 
@@ -26,6 +29,7 @@
 #include <stdexcept>
 #include <memory>
 #include <algorithm>
+#include <string>
 
 #ifdef _WIN32
 extern "C" { uint32_t GetACP(); }
@@ -42,6 +46,16 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	bool do_skip_intro = false;
+	for (int argi = 1; argi < argc; ++argi)
+	{
+		std::string arg = argv[argi];
+		if (arg == "--skip-intro") {
+			do_skip_intro = true;
+		} else {
+			std::cerr << "WARNING: ignoring argument '" << arg << "'." << std::endl;
+		}
+	}
 	//when compiled on windows, unhandled exceptions don't have their message printed, which can make debugging simple issues difficult.
 	try {
 #endif
@@ -115,7 +129,18 @@ int main(int argc, char **argv) {
 	call_load_functions();
 
 	//------------ create game mode + make current --------------
-	Mode::set_current(std::make_shared< PlayMode >(!GameManager::Get().tutorial_done));
+	{
+		auto intro = std::make_shared< GP26IntroMode >( [](){
+			Mode::set_current(std::make_shared< PlayMode >(!GameManager::Get().tutorial_done));
+		} );
+		if (do_skip_intro) {
+			intro->time = 10.0f; //force intro to end on its first update
+		}
+		Mode::set_current( intro );
+	}
+
+	//------------ create game mode + make current --------------
+	// Mode::set_current(std::make_shared< PlayMode >(!GameManager::Get().tutorial_done));
 
 	//------------ main loop ------------
 
