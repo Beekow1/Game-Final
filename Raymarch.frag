@@ -2,10 +2,10 @@
 
 const int MAX_BLOCKERS = 128;
 const int MAX_LIGHTS = 8;
-
+const float OBJECT_INT_FALLOFF = 0.1;
 const float HIT_EPSILON = 0.16;
 
-const float light_levels = 6.0;
+const float light_levels = 8.0;
 
 const vec4 AMBIENT = vec4(0.1, 0.1, 0.1, 1.0);
 
@@ -42,30 +42,35 @@ float sceneDistance(vec2 position) {
 
 float raymarch(vec2 position, vec2 lightPosition) {
     vec2 toLight = lightPosition - position;
+    float lightDistance = length(toLight);
 
-    if (length(toLight) < HIT_EPSILON) {
+    if (lightDistance < HIT_EPSILON) {
         return 1.0;
     }
 
-    vec2 direction = normalize(toLight);
+    vec2 direction = toLight / lightDistance;
     float t = 0.0;
+    float vis = 1.0;
 
-    for (int i = 0; i < 32; ++i) {
-        vec2 samplePosition = position + direction * t;
-        if (dot(lightPosition - samplePosition, direction) < HIT_EPSILON) {
-            return 1.0;
-        }
-        float distanceToBlocker = sceneDistance(samplePosition);
-        t += distanceToBlocker;
-        if (distanceToBlocker < HIT_EPSILON) {
+    for (int i = 0; i < 128; ++i) {
+        if (t >= lightDistance)
+            return vis;
+
+        float d = sceneDistance(position + direction * t);
+
+        float stepSize = max(abs(d), 0.5);
+        stepSize = min(stepSize, lightDistance - t);
+
+        if (d < 0.0)
+            vis *= exp(-OBJECT_INT_FALLOFF * stepSize);
+
+        t += stepSize;
+
+        if (vis < 0.001)
             return 0.0;
-        }
-        if (t >= length(toLight)) {
-            return 1.0;
-        }
     }
 
-    return 0.0; // we're probably too far away or something went wrong in our march.
+    return t >= lightDistance ? vis : 0.0;
 }
 
 void main() {
@@ -85,15 +90,15 @@ void main() {
         float falloff = clamp(1.0 - length(light.position - gl_FragCoord.xy) / light.radius, 0.0, 1.0);
         falloff *= falloff;
 
-        falloff = round(falloff * (light_levels - 1.0)) / (light_levels - 1.0);
-
         float visible = 1.0;
 
         if (light.do_march) {
             visible = raymarch(gl_FragCoord.xy, light.position);
         }
 
-        light_mult += light.color * light.intensity * falloff * visible;
+        visible = round((falloff * visible) * (light_levels - 1.0)) / (light_levels - 1.0);
+
+        light_mult += light.color * light.intensity * visible;
     }
 
     fragColor = vec4(clamp(light_mult + AMBIENT.rgb, 0.0, 1.0), 1.0);
