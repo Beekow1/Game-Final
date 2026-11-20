@@ -71,7 +71,7 @@ struct Player
     // combat
     int max_health = 3;
     int health = max_health;
-    float i_frame_time = 0.6f;
+    float i_frame_time = 0.6f; 
     float i_timer = 0.0f;
 
     float dash_attack_grace = 0.2f;

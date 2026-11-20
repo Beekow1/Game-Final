@@ -17,6 +17,7 @@
 
 #include "DummyEnemy.hpp"
 #include "RatEnemy.hpp"
+#include "GhostEnemy.hpp"
 
 #include "Juice.hpp"
 
@@ -238,6 +239,49 @@ static RoomLayout load_room_layout(std::string const &path)
 			}
 		}
 	}
+	
+	//aabb vertical merge
+	auto merge_vertical = [&](std::vector<AABB> &aabbs)
+	{
+		for (size_t i = 0; i < aabbs.size(); i++)
+		{
+			bool merged = true;
+
+			while (merged)
+			{
+				merged = false;
+
+				for (size_t j = i + 1; j < aabbs.size(); j++)
+				{
+					AABB& a = aabbs[i];
+					AABB& b = aabbs[j];
+
+					bool same_x =
+						a.min.x == b.min.x &&
+						a.max.x == b.max.x;
+
+					bool touching =
+						a.max.y == b.min.y ||
+						b.max.y == a.min.y;
+
+					if (same_x && touching)
+					{
+						a.min.y = std::min(a.min.y, b.min.y);
+						a.max.y = std::max(a.max.y, b.max.y);
+
+						aabbs.erase(aabbs.begin() + j);
+
+						merged = true;
+						break;
+					}
+				}
+			}	
+		}
+	};
+
+	merge_vertical(layout.solids);
+	merge_vertical(layout.hazards);
+
 	// item markers
 	auto is_yellow = [&](uint32_t px_x, uint32_t px_y)
 	{
@@ -410,11 +454,13 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 		create_templates_with_doors();
 		proc_gen.params.room_scale = 512;
 		proc_gen.generateLevel();
-		proc_gen.addRandomRoom(Doors::Down);
 		proc_gen.addShopRoom();
 		proc_gen.printGrid();
 
 		spawn_pos = glm::vec2(160.0f, 153.0f) / PPU;
+
+		glm::vec2 spawn_pos2 = glm::vec2(100.0f, 50.0f); 
+
 
 		float lowest = 0.0f; 
 		for (auto const &room : proc_gen.active_rooms)
@@ -423,6 +469,8 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 		}
 		for (auto &room : proc_gen.active_rooms)
 		{
+			enemies.emplace_back(std::make_unique<DummyEnemy>(glm::vec2(room->world_x, room->world_y) + spawn_pos2, *dummy_sheet));
+
 			if (room->kind == RoomKind::Shop)
 			{
 				buildShop(glm::vec2(room->world_x, room->world_y));
@@ -620,6 +668,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed)
 {
+	total_time += elapsed;
 	bool buy = buy_pressed; 
 	buy_pressed = false; 
 	anim_time += elapsed; 
@@ -808,6 +857,11 @@ void PlayMode::update(float elapsed)
 		}
 	}
 
+	if (total_time > 10.0f * proc_gen.active_rooms.size())
+	{
+		enemies.emplace_back(std::make_unique<GhostEnemy>(player.transform->position + glm::vec3(25.0f, 25.0f, 0.0f), *dummy_sheet));
+	}
+
 	// reset button press counters:
 	left.downs = 0;
 	right.downs = 0;
@@ -926,8 +980,9 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		float radius_px = player_light.radius * PPU;
 
 		std::vector<glm::vec4> light_blockers;
-
-		for (Collider const &collider : colliders) {
+		
+		for (const Collider &collider : colliders)
+		{
 			if (collider.layer != CollisionLayer::Level) continue;
 			AABB box = collider.getWorldSpaceAABB();
 
@@ -935,7 +990,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			
 			float delta = glm::distance(box_center, glm::vec2(player_light.position));
 
-			if (delta > player_light.radius * player_light.radius + glm::length(glm::vec2(box.max) - glm::vec2(box.min))/2.0f) {
+			if (delta > (player_light.radius * 1.2f) + glm::length(glm::vec2(box.max) - glm::vec2(box.min))/2.0f) {
 				continue;
 			}
 

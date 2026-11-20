@@ -9,6 +9,7 @@ enum class EnemyType : uint8_t
     Dummy = 0,
     Rat = 1,
     ExplodingRat = 2,
+    Ghost = 3,
 };
 
 enum class EnemyState : uint8_t
@@ -36,6 +37,8 @@ struct Enemy
     int health = 100;
     int contact_damage = 1;
     bool grounded = false;
+
+    float gravity_scale = 1.0f;
 
     int money = 2;
 

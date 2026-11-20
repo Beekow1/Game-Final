@@ -12,6 +12,7 @@ struct GameManager
         int enemies_killed = 0;
         int quota_enemies = 0;
         int total_enemies = 0;
+        int quota_unit_price = 5;
 
 
     public:
@@ -48,6 +49,13 @@ struct GameManager
         }
 
         bool quotaMet() const { return enemies_killed >= quota_enemies; }
+
+        int quotaPrice() const 
+        {
+            int diff = quota_enemies - enemies_killed;
+            return diff * quota_unit_price; 
+        }
+
         bool spend(int price) // used by shop
         {
             if (money < price) return false; 

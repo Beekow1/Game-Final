@@ -21,6 +21,7 @@
 #include <vector>
 #include <deque>
 #include <optional>
+#include <ranges>
 
 struct PlayMode : Mode
 {
@@ -85,6 +86,8 @@ struct PlayMode : Mode
 	GenParams gen_params;
 	float quota = 0.5f;
 
+	float total_time = 0.0f;
+
 	std::vector<std::unique_ptr<Enemy>> enemies;
 
 	struct StaticSprite
@@ -101,6 +104,7 @@ struct PlayMode : Mode
 	// game render settings
 	static constexpr int PixelWidth = 480;
 	static constexpr int PixelHeight = 270;
+	static constexpr int MAX_LIGHT_BLOCKERS = 32;
 	static constexpr float PPU = 16.0f;
 
 	SpriteAnimator player_anim;

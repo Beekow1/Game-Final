@@ -62,7 +62,6 @@ bool RatEnemy::canMove(int direction, float dt, const std::vector<Collider> &col
 
 void RatEnemy::updateBehavior(float dt, const std::vector<Collider> &col_list)
 {
-
     if (!grounded)
     {
         velocity.x = 0.0f;

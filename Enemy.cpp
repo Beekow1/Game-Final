@@ -26,7 +26,7 @@ void Enemy::update(float dt, const std::vector<Collider> &col_list)
     if (state == EnemyState::Dead)
         return;
 
-    const float gravity = 9.81f * 8.0f;
+    const float gravity = 9.81f * 8.0f * gravity_scale;
     const float max_fall_speed = 35.0f;
 
     velocity.y = std::max(velocity.y - gravity * dt, -max_fall_speed);
