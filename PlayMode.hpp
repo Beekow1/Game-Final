@@ -14,6 +14,7 @@
 #include "RoomTemplate.hpp"
 
 #include "load_save_png.hpp"
+#include "Light.hpp"
 
 #include <glm/glm.hpp>
 
@@ -125,4 +126,7 @@ struct PlayMode : Mode
 
 	GLuint fbo = 0;
 	GLuint color_texture = 0;
+	GLuint lighting_program = 0;
+	GLuint lighting_vao = 0;
+	
 };

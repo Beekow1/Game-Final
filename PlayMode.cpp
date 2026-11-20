@@ -2,6 +2,11 @@
 #include "SpriteSheet.hpp"
 
 #include "LitColorTextureProgram.hpp"
+#include "gl_compile_program.hpp"
+
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
 
 #include "DrawLines.hpp"
 #include "DrawSprites.hpp"
@@ -113,6 +118,23 @@ Load<SpriteSheet> default_room_sheet(LoadTagDefault, []() -> SpriteSheet const *
 Load<SpriteSheet> shop_room_sheet(LoadTagDefault, []() -> SpriteSheet const *
 	{ return load_static_image("sprites/shop-room.png", glm::uvec2(512, 512)); });
 
+static GLuint load_lighting_program() {
+    std::ifstream vert_file(data_path("Raymarch.vert"));
+    std::ifstream frag_file(data_path("Raymarch.frag"));
+
+    std::stringstream vert_buffer;
+    vert_buffer << vert_file.rdbuf();
+
+    std::stringstream frag_buffer;
+    frag_buffer << frag_file.rdbuf();
+
+    GLuint program = gl_compile_program(
+        vert_buffer.str(),
+        frag_buffer.str()
+    );
+
+    return program;
+}
 // Control hints for the tutorial room
 struct TutorialSign
 {
@@ -328,6 +350,9 @@ void PlayMode::respawn()
 
 PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sheet, "Idle")
 {
+	lighting_program = load_lighting_program();
+	glGenVertexArrays(1, &lighting_vao);
+
 	GameManager::Get().startFloor();
 
 	colliders.reserve(128);
@@ -433,7 +458,7 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 	glGenTextures(1, &color_texture);
 	glBindTexture(GL_TEXTURE_2D, color_texture);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, PixelWidth, PixelHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, PixelWidth+1, PixelHeight+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -455,6 +480,9 @@ PlayMode::~PlayMode()
 {
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteTextures(1, &color_texture);
+
+	glDeleteVertexArrays(1, &lighting_vao);
+    glDeleteProgram(lighting_program);
 }
 
 void update_input_dir()
@@ -791,7 +819,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 {
 	const int fbo_w = PixelWidth + 1;
 	const int fbo_h = PixelHeight + 1;
-
+	
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glViewport(0, 0, fbo_w, fbo_h);
 
@@ -880,6 +908,104 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			DrawSprites sprites(e->anim.sheet, view_proj);
 			sprites.draw(e->anim.row, e->anim.frame(), feet, e->facing_left);
 		}
+	}
+
+	{
+		// Compute inputs to raymarching shader
+		Light player_light{
+			.position = glm::vec2(player.transform->position),
+			.color = glm::vec3(1.0f, 0.75f, 0.45f),
+			.radius = 12.0f,
+			.intensity = 1.4f,
+			.do_march = true,
+		};
+
+		glm::vec2 offset = screen_center - cam_pos_ppu;
+
+		glm::vec2 light_px = player_light.position * PPU + offset;
+		float radius_px = player_light.radius * PPU;
+
+		std::vector<glm::vec4> light_blockers;
+
+		for (Collider const &collider : colliders) {
+			if (collider.layer != CollisionLayer::Level) continue;
+			AABB box = collider.getWorldSpaceAABB();
+
+			glm::vec2 box_center = (glm::vec2(box.min) + glm::vec2(box.max)) * 0.5f;
+			
+			float delta = glm::distance(box_center, glm::vec2(player_light.position));
+
+			if (delta > player_light.radius * player_light.radius + glm::length(glm::vec2(box.max) - glm::vec2(box.min))/2.0f) {
+				continue;
+			}
+
+			glm::vec2 min_px = glm::vec2(box.min) * PPU + offset;
+			glm::vec2 max_px = glm::vec2(box.max) * PPU + offset;
+
+			light_blockers.emplace_back(min_px, max_px);
+		}
+
+		glUseProgram(lighting_program);
+
+		glUniform1i(
+			glGetUniformLocation(lighting_program, "BLOCKER_COUNT"),
+			static_cast<GLint>(light_blockers.size())
+		);
+
+		glUniform4fv(
+			glGetUniformLocation(lighting_program, "BLOCKER_BBS[0]"),
+			static_cast<GLsizei>(light_blockers.size()),
+			glm::value_ptr(light_blockers.front())
+		);
+
+		glUniform1i(glGetUniformLocation(lighting_program, "LIGHT_COUNT"), 1);
+
+		glUniform2fv(
+			glGetUniformLocation(lighting_program, "LIGHTS[0].position"),
+			1, glm::value_ptr(light_px)
+		);
+
+		glUniform3fv(
+			glGetUniformLocation(lighting_program, "LIGHTS[0].color"),
+			1, glm::value_ptr(player_light.color)
+		);
+
+		glUniform1f(
+			glGetUniformLocation(lighting_program, "LIGHTS[0].radius"),
+			radius_px
+		);
+
+		glUniform1f(
+			glGetUniformLocation(lighting_program, "LIGHTS[0].intensity"),
+			player_light.intensity
+		);
+
+		glUniform1i(
+			glGetUniformLocation(lighting_program, "LIGHTS[0].do_march"),
+			player_light.do_march ? 1 : 0
+		);
+
+		glDisable(GL_DEPTH_TEST);
+		glEnable(GL_FRAMEBUFFER_SRGB);
+		glEnable(GL_BLEND);
+
+		glBlendEquation(GL_FUNC_ADD);
+
+		glBlendFuncSeparate(
+			GL_DST_COLOR, GL_ZERO,
+			GL_ZERO, GL_ONE
+		);
+
+		glBindVertexArray(lighting_vao);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+
+		glBindVertexArray(0);
+		glUseProgram(0);
+
+		glDisable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+
 	}
 
 	{
