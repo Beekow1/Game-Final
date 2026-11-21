@@ -3,6 +3,7 @@
 #include "Scene.hpp"
 #include <iostream>
 #include "Juice.hpp"
+#include "Enemy.hpp"
 
 enum class TechState
 {
@@ -80,6 +81,8 @@ struct Player
     float hurt_knockback_bounce = 25.0f;
 
     float damage_control_lock = 0.06f;
+
+    std::vector<Enemy*> hit_enemies;
 
     // states
     glm::vec2 velocity = glm::vec2(0.0f);

@@ -3,11 +3,10 @@
 
 void Juice::addTrauma(float intensity, float duration, glm::vec2 dir)
 {
-    std::cout << decay_rate << std::endl;
     trauma = glm::clamp(trauma + intensity, 0.0f, 1.0f);
     float new_decay = trauma / duration;
     decay_rate = new_decay;
-    //decay_rate = (decay_rate > 0.0f) ? std::min(decay_rate, new_decay) : new_decay;
+
     shake_dir = (glm::length(dir) > 0.0f) ? glm::normalize(dir) : glm::vec2(0.0f);
     rand_shake_scale = 1.0f;
     shake_freq = DEFAULT_SHAKE_FREQ;
@@ -18,7 +17,7 @@ void Juice::hitShake(float intensity, float duration, glm::vec2 dir, float shake
     trauma = glm::clamp(trauma + intensity, 0.0f, 1.0f);
     float new_decay = trauma / duration;
     decay_rate = new_decay;
-    //decay_rate = (decay_rate > 0.0f) ? std::min(decay_rate, new_decay) : new_decay;
+
     shake_dir = (glm::length(dir) > 0.0f) ? glm::normalize(dir) : glm::vec2(0.0f);
     rand_shake_scale = 0.0f;
     shake_freq = shake_freq_a;

@@ -189,6 +189,8 @@ void Player::dash(glm::vec2 input_dir)
 
     jump_state = JumpState::Dashing;
 
+    hit_enemies.clear();
+
     velocity = dash_dir * dash_force;
     latest_dash_dir = dash_dir;
 }
@@ -245,8 +247,6 @@ void Player::dashBounce()
     {
         lockMovement(horiz_dash_bounce_control_time);
     }
-
-    std::cout << velocity.y << std::endl;
 
     is_grounded = false;
     coyote_timer = 0.0f;

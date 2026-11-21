@@ -828,11 +828,11 @@ void PlayMode::update(float elapsed)
 				continue;
 			}
 
-			if (player.is_attacking)
+			if (player.is_attacking && std::find(player.hit_enemies.begin(), player.hit_enemies.end(), enemy.get()) == player.hit_enemies.end())
 			{
 				enemy->takeDamage(player.dash_damage);
 				player.dashBounce();
-
+				player.hit_enemies.push_back(enemy.get());
 				break;
 			}
 			else if (player.takeDamage(enemy->contact_damage, glm::vec2(enemy->transform.position)))
