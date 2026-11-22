@@ -4,14 +4,17 @@
 #include <iostream>
 #include "Juice.hpp"
 #include "Enemy.hpp"
+#include "StyleMeter.hpp"
 
 enum class TechState
 {
     Default,
     Dashing,
     Wave_Dashing,
+    Pre_Super_Jumping,
     Super_Jumping,
     Dash_Jumping,
+    Super_Dash_Jumping,
 };
 
 enum class JumpState
@@ -20,7 +23,8 @@ enum class JumpState
     Jumping,
     Apex,
     Falling,
-    Dashing
+    Dashing,
+    LowGrav
 };
 
 struct Player
@@ -56,11 +60,13 @@ struct Player
     float tech_timer = 0.0f;
 
     int dash_damage = 25;
-    float dash_bounce_speed = 18.0f;
-    float dash_bounce_lift = 25.0f;
-    float horiz_dash_bounce_control_time = 0.25f;
-    float dash_bounce_control_time = 0.3f;
+    float dash_bounce_speed = 20.0f;
+    float dash_bounce_lift = 20.0f;
+    float horiz_dash_bounce_control_time = 0.3f;
+    float dash_bounce_control_time = 0.4f;
     float dash_end_speed = 18.0f;
+
+    bool dash_started_airborne;
 
     float wavedash_speed = 31.0f;
     float wavedash_duration = 0.3f;
@@ -87,6 +93,8 @@ struct Player
     // states
     glm::vec2 velocity = glm::vec2(0.0f);
     glm::vec2 latest_dash_dir = glm::vec2(0.0f);
+
+    StyleMeter style_meter;
 
     bool is_dashing = false;
     bool jump_not_wasted = false;
@@ -119,6 +127,10 @@ struct Player
 
     bool takeDamage(int amount, glm::vec2 damage_source);
     void dashBounce();
+
+    int calcualteDamage();
+
+    void postAttackReset(float control_lock_time, bool refund_dash);
 
     void reset(glm::vec2 position);
 };

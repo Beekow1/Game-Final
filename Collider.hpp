@@ -18,6 +18,7 @@ enum class CollisionLayer : std::uint32_t
     Level = 1u << 0,
     Player = 1u << 1,
     Enemy = 1u << 2,
+    Ghost = 1u << 3,
 };
 
 struct Collider

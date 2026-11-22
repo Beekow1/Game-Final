@@ -90,6 +90,8 @@ struct PlayMode : Mode
 
 	std::vector<std::unique_ptr<Enemy>> enemies;
 
+	bool ghost_spawned = false;
+
 	struct StaticSprite
 	{
 		SpriteSheet const *sheet = nullptr;

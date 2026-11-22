@@ -16,12 +16,14 @@ glm::vec3 getPlayerPos(const std::vector<Collider> &col_list)
 GhostEnemy::GhostEnemy(glm::vec2 enemy_position, SpriteSheet const &sheet) : Enemy(EnemyType::Ghost, enemy_position, sheet)
 {
     gravity_scale = 0.0f;
-    health = 1000000;
+    health = 10000000;
     contact_damage = 1000;
 
     collider.local_aabb.min = glm::vec3(-0.5f, -0.5f, 0.0f);
     collider.local_aabb.max = glm::vec3(0.5f, 0.5f, 0.0f);
 
+    collider.layer = CollisionLayer::Ghost;
+    collider.collision_mask = static_cast<std::uint32_t>(CollisionLayer::Player);
     dash_wait_d = dash_wait;
 }
 

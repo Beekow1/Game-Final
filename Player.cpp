@@ -39,6 +39,8 @@ void Player::updatePlayer(float elapsed)
 {
     elapsed = std::min(elapsed, 0.05f);
 
+    style_meter.update(elapsed);
+
     i_timer = std::max(0.0f, i_timer - elapsed);
 
     dash_timer = std::max(0.0f, dash_timer - elapsed);
@@ -89,15 +91,17 @@ void Player::attemptJump()
         jump_buffer_timer = 0.0f;
         coyote_timer = 0.0f;
 
-        if ((latest_dash_dir.y < 0.0f && std::abs(latest_dash_dir.x) > 0.0f) && in_tech)
+        if ((latest_dash_dir.y < 0.0f && std::abs(latest_dash_dir.x) > 0.0f) && in_tech && dash_started_airborne)
         {
             std::cout << "WAVE DASH " << std::endl;
             velocity.x = glm::sign(latest_dash_dir.x) * wavedash_speed;
-            velocity.y = jump_force * 0.7f;
+            velocity.y = jump_force * 0.8f;
             jump_state = JumpState::Jumping;
             
             is_dashing = false;
             is_grounded = false;
+
+            style_meter.smallStylePause();
 
             lockMovement(wavedash_duration);
             tech_state = TechState::Wave_Dashing;
@@ -107,11 +111,13 @@ void Player::attemptJump()
         else if ((latest_dash_dir.y < 0.0f && std::abs(latest_dash_dir.x) == 0.0f) && in_tech)
         {
             std::cout << "SUPER JUMP " << std::endl;
-            velocity.y = jump_force * 1.2f;
+            velocity.y = jump_force * 1.4f;
             jump_state = JumpState::Jumping;
 
             is_dashing = false;
             is_grounded = false;
+
+            style_meter.smallStylePause();
 
             lockMovement(dash_time);
             tech_state = TechState::Super_Jumping;
@@ -120,15 +126,33 @@ void Player::attemptJump()
         else if ((std::abs(latest_dash_dir.y) == 0.0f && std::abs(latest_dash_dir.x) > 0.0f) && in_tech)
         {
             std::cout << "DASH JUMP" << std::endl;
-            velocity.y = jump_force * 0.85f;
+            velocity.y = jump_force * 0.65f;
             velocity.x *= 1.25f;
             jump_state = JumpState::Jumping;
 
             is_dashing = false;
             is_grounded = false;
 
+            style_meter.smallStylePause();
+
             lockMovement(dash_jump_duration);
             tech_state = TechState::Dash_Jumping;
+            return;
+        }
+        else if ((latest_dash_dir.y < 0.0f && std::abs(latest_dash_dir.x) > 0.0f) && in_tech && !dash_started_airborne)
+        {
+            std::cout << "SUPER DASH JUMP" << std::endl;
+            velocity.y = jump_force * 0.45f;
+            velocity.x *= 1.45f;
+            jump_state = JumpState::Jumping;
+
+            is_dashing = false;
+            is_grounded = false;
+
+            style_meter.smallStylePause();
+
+            lockMovement(dash_jump_duration);
+            tech_state = TechState::Super_Dash_Jumping;
             return;
         }
 
@@ -161,6 +185,7 @@ void Player::dash(glm::vec2 input_dir)
         return;
     }
 
+    dash_started_airborne = !is_grounded;
     glm::vec2 dash_dir;
     if (glm::length(input_dir) < 1e-3)
     {
@@ -191,6 +216,8 @@ void Player::dash(glm::vec2 input_dir)
 
     hit_enemies.clear();
 
+    if (dash_dir.y < 0.0f) { tech_state = TechState::Pre_Super_Jumping; }
+
     velocity = dash_dir * dash_force;
     latest_dash_dir = dash_dir;
 }
@@ -216,13 +243,16 @@ void Player::applyPlayerGravity(float elapsed)
     case JumpState::Dashing:
         current_gravity_mult = 0.0f;
         break;
+    case JumpState::LowGrav:
+        current_gravity_mult = 4.0f;
+        break;
     }
     velocity.y -= base_gravity * current_gravity_mult * elapsed;
 }
 
 void Player::attemptJumpCut()
 {
-    if (velocity.y > 0.0f && jump_state == JumpState::Jumping && !is_dashing)
+    if (velocity.y > 0.0f && jump_state == JumpState::Jumping && !is_dashing && tech_state == TechState::Default)
     {
         velocity.y *= jump_cut_mult;
         jump_state = JumpState::Falling;
@@ -238,31 +268,140 @@ void Player::lockMovement(float s)
 
 void Player::dashBounce()
 {
-    is_dashing = false;
-    velocity = -latest_dash_dir * dash_bounce_speed;
-    velocity.y = dash_bounce_lift;
-
-    lockMovement(dash_bounce_control_time);
-    if (std::abs(latest_dash_dir.y) < 0.01f)
+    switch (tech_state)
     {
-        lockMovement(horiz_dash_bounce_control_time);
-    }
+        case TechState::Dashing:
+        {
+            velocity = -latest_dash_dir * dash_bounce_speed;
+            velocity.y = dash_bounce_lift;
 
+            float lock = (std::abs(latest_dash_dir.y) < 0.01f)
+                ? horiz_dash_bounce_control_time
+                : dash_bounce_control_time;
+
+            postAttackReset(lock, true);
+
+            Juice::Get().addTrauma(0.3f, 0.1f, -velocity);
+            Juice::Get().applyHitStop(0.08f);
+            style_meter.addPoints(0.4f, is_grounded, (int)TechState::Dashing);
+            break;
+        }
+
+        case TechState::Wave_Dashing:
+        {
+            velocity = -latest_dash_dir * dash_bounce_speed * 1.1f;
+            velocity.y = dash_bounce_lift * 1.35f;
+
+            postAttackReset(dash_bounce_control_time, true);
+
+            Juice::Get().addTrauma(0.5f, 0.1f, -velocity);
+            Juice::Get().applyHitStop(0.12f);
+            style_meter.addPoints(0.7f, is_grounded, (int)TechState::Wave_Dashing);
+            break;
+        }
+
+        case TechState::Dash_Jumping:
+        {
+            velocity = latest_dash_dir * dash_bounce_speed * 1.25f;
+            velocity.y = dash_bounce_lift * 0.75f;
+
+            postAttackReset(dash_bounce_control_time, true);
+
+            Juice::Get().addTrauma(0.5f, 0.1f, -velocity);
+            Juice::Get().applyHitStop(0.12f);
+            style_meter.addPoints(0.6f, is_grounded, (int)TechState::Dash_Jumping);
+            break;
+        }
+
+        case TechState::Super_Dash_Jumping:
+        {
+            velocity = latest_dash_dir * dash_bounce_speed * 1.55f;
+            velocity.y = dash_bounce_lift * 0.65f;
+
+            postAttackReset(dash_bounce_control_time, true);
+
+            Juice::Get().addTrauma(0.6f, 0.2f, -velocity);
+            Juice::Get().applyHitStop(0.15f);
+            style_meter.addPoints(0.7f, is_grounded, (int)TechState::Super_Dash_Jumping);
+            break;
+        }
+
+        case TechState::Pre_Super_Jumping:
+        {
+            velocity = latest_dash_dir * dash_bounce_speed * 0.25f;
+            velocity.y = dash_bounce_lift * 1.65f;
+
+            postAttackReset(dash_bounce_control_time, true);
+
+            Juice::Get().addTrauma(0.5f, 0.1f, -velocity);
+            Juice::Get().applyHitStop(0.12f);
+            style_meter.addPoints(0.5f, is_grounded, (int)TechState::Pre_Super_Jumping);
+            break;
+        }
+
+        case TechState::Super_Jumping:
+        {
+            velocity = latest_dash_dir * dash_bounce_speed * 0.25f;
+            velocity.y = dash_bounce_lift * 2.0f;
+
+            postAttackReset(dash_bounce_control_time, true);
+
+            Juice::Get().addTrauma(0.5f, 0.1f, -velocity);
+            Juice::Get().applyHitStop(0.12f);
+            style_meter.addPoints(0.5f, is_grounded, (int)TechState::Super_Jumping);
+            break;
+        }
+
+        case TechState::Default:
+            break;
+    }
+}
+
+int Player::calcualteDamage()
+{
+    switch (tech_state)
+    {
+        case TechState::Wave_Dashing:
+        {
+            return (int)std::ceil(dash_damage * 1.5f);
+        }
+
+        case TechState::Dash_Jumping:
+        {
+            return (int)std::ceil(dash_damage * 1.25f);
+        }
+
+        case TechState::Super_Dash_Jumping:
+        {
+            return (int)std::ceil(dash_damage * 1.35f);
+        }
+
+        default:
+        {
+            return dash_damage;
+        }
+    }
+}
+
+void Player::postAttackReset(float control_lock_time, bool refund_dash)
+{
+    is_dashing = false;
     is_grounded = false;
+
     coyote_timer = 0.0f;
     tech_timer = 0.0f;
-
     jump_buffer_timer = 0.0f;
     jump_not_wasted = false;
 
+    lockMovement(control_lock_time);
     jump_state = velocity.y > 0.0f ? JumpState::Jumping : JumpState::Falling;
 
-    cur_dash_count++;
+    if (refund_dash)
+    {
+        cur_dash_count = std::min(max_dash_count, cur_dash_count + 1);
+    }
 
     i_timer = std::max(i_timer, dash_attack_grace);
-
-    Juice::Get().addTrauma(0.3f, 0.1f, -velocity);
-    Juice::Get().applyHitStop(0.08f);
 }
 
 bool Player::takeDamage(int amount, glm::vec2 damage_source)

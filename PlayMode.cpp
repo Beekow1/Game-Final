@@ -342,6 +342,7 @@ void PlayMode::respawn()
 {
 	player.reset(spawn_pos);
 	enemies.clear();
+	ghost_spawned = false;
 	if (use_tutorial)
 	{
 		for (glm::vec2 p : dummy_spawns)
@@ -675,7 +676,6 @@ void PlayMode::update(float elapsed)
 	denied_timer = std::max(0.0f, denied_timer - elapsed);
 
 	elapsed = Juice::Get().checkDeltaTime(elapsed);
-
 	Juice::Get().update(elapsed);
 
 	player.jump_buffer_timer -= elapsed;
@@ -830,7 +830,7 @@ void PlayMode::update(float elapsed)
 
 			if (player.is_attacking && std::find(player.hit_enemies.begin(), player.hit_enemies.end(), enemy.get()) == player.hit_enemies.end())
 			{
-				enemy->takeDamage(player.dash_damage);
+				enemy->takeDamage(player.calcualteDamage(), player.style_meter.getCoinMultiplier());
 				player.dashBounce();
 				player.hit_enemies.push_back(enemy.get());
 				break;
@@ -857,8 +857,9 @@ void PlayMode::update(float elapsed)
 		}
 	}
 
-	if (total_time > 10.0f * proc_gen.active_rooms.size())
+	if ((total_time > 10.0f * proc_gen.active_rooms.size()) && !ghost_spawned && !use_tutorial)
 	{
+		ghost_spawned = true;
 		enemies.emplace_back(std::make_unique<GhostEnemy>(player.transform->position + glm::vec3(25.0f, 25.0f, 0.0f), *dummy_sheet));
 	}
 
@@ -1097,7 +1098,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 			glm::mat4x3 enemy_draw_transform = glm::translate(glm::mat4(1.0f), enemy_center) * glm::scale(glm::mat4(1.0f), enemy_extents);
 
-			//lines.draw_box(enemy_draw_transform, glm::u8vec4(255, 180, 0, 255));
+			lines.draw_box(enemy_draw_transform, glm::u8vec4(255, 180, 0, 255));
 
 			lines.draw_text(
 				std::to_string(enemy->health),
@@ -1150,6 +1151,12 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 							glm::vec3(cam_pos.x - 10.0f, cam_pos.y + 6.5f, 0.0f),
 							glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
 							glm::u8vec4(255, 255, 255, 255));
+
+		lines.draw_text(std::to_string(player.style_meter.getCoinMultiplier()) + "x  " + std::to_string(player.style_meter.style_cur),
+					glm::vec3(cam_pos.x - 10.0f, cam_pos.y - 6.5f, 0.0f),
+					glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+					glm::u8vec4(255, 255, 255, 255));
+
 
 		lines.draw_text(std::to_string(GameManager::Get().getMoney()) + " MONEY",
 							glm::vec3(cam_pos.x + 10.0f, cam_pos.y + 6.5f, 0.0f),

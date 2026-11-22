@@ -47,7 +47,7 @@ struct Enemy
 
     void update(float dt, const std::vector<Collider> &col_list);
     void setBehaviorState(EnemyState new_state);
-    void takeDamage(int amount);
+    void takeDamage(int amount, float coin_mult);
 
 private:
     virtual void updateBehavior(float dt, const std::vector<Collider> &col_list) = 0;

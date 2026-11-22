@@ -82,7 +82,7 @@ void Enemy::setBehaviorState(EnemyState new_state)
     }
 }
 
-void Enemy::takeDamage(int amount)
+void Enemy::takeDamage(int amount, float coin_mult)
 {
     if (state == EnemyState::Dead || amount <= 0)
         return;
@@ -100,6 +100,6 @@ void Enemy::takeDamage(int amount)
     if (health <= 0)
     {
         setBehaviorState(EnemyState::Dead);
-        GameManager::Get().enemyKilled(money);
+        GameManager::Get().enemyKilled((int)std::ceil(money * coin_mult));
     }
 }
