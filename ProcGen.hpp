@@ -41,10 +41,10 @@ struct GenParams
 {
     int rows = 10;
     int cols = 10;
-    size_t path_len = 25;
+    size_t path_len = 7;
     int edge_buf = 2;
     unsigned int seed = 42;
-    float straightness_bias = 1.0f;
+    float straightness_bias = 0.6f;
 
     float room_scale = 512.0f;
 };

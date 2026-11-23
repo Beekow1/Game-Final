@@ -47,6 +47,16 @@ Load<SpriteSheet> main_character_sheet(LoadTagDefault, []() -> SpriteSheet const
 																											 },
 																										 }); });
 
+Load<SpriteSheet> minimap_sheet(LoadTagDefault, []() -> SpriteSheet const *
+											{
+												return new SpriteSheet(data_path("sprites/MiniMap.png"), SpriteSheet::Info{
+													.cell_size = glm::uvec2(8, 8),
+													.rows = {
+														{"Rooms", 16, 0.0f, false},
+													},
+												});
+											});
+
 Load<SpriteSheet> dummy_sheet(LoadTagDefault, []() -> SpriteSheet const *
 							  { return new SpriteSheet(data_path("sprites/Dummy.png"), SpriteSheet::Info{
 																						   .cell_size = glm::uvec2(24, 48),
@@ -746,7 +756,7 @@ void PlayMode::update(float elapsed)
 		}
 	}
 
-	if ((total_time > 10.0f * proc_gen.active_rooms.size()) && !ghost_spawned && !use_tutorial)
+	if ((total_time > 15.0f * proc_gen.active_rooms.size()) && !ghost_spawned && !use_tutorial)
 	{
 		ghost_spawned = true;
 		enemies.emplace_back(std::make_unique<GhostEnemy>(player.transform->position + glm::vec3(25.0f, 25.0f, 0.0f), *dummy_sheet));
@@ -836,12 +846,35 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			}
 		}
 	}
+
+	bool should_draw = true;
+	if (player.is_hurt_flashing && player.i_timer > 0.0f)
+	{
+		float flash_interval = 0.08f;
+		should_draw = std::fmod(player.i_timer, flash_interval * 2.0f) < flash_interval;
+	}
 	
 	{ // player
 		AABB box = player.collider.getWorldSpaceAABB();
 		glm::vec2 feet = glm::vec2(player.transform->position.x, box.min.y) * PPU;
 		DrawSprites sprites(*main_character_sheet, view_proj);
-		sprites.draw(player_anim.row, player_anim.frame(), feet, facing_left);
+		if (should_draw)
+		{
+			sprites.draw(player_anim.row, player_anim.frame(), feet, facing_left);
+		}
+	}
+
+	{
+		const float minimap_scale = 1.75f;
+
+		const glm::mat4 hud_to_clip =
+			proj * glm::scale(glm::mat4(1.0f), glm::vec3(minimap_scale, minimap_scale, 1.0f));
+
+		mini_map.origin = glm::vec2(fbo_w / minimap_scale - 90.0f, fbo_h / minimap_scale - 90.0f);
+
+		DrawSprites sprites(*minimap_sheet, hud_to_clip);
+		mini_map.setMiniMapActiveRooms(proc_gen.active_rooms);
+		mini_map.drawMiniMap(sprites);
 	}
 
 	{ // enemies
@@ -1035,7 +1068,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 			glm::mat4x3 enemy_draw_transform = glm::translate(glm::mat4(1.0f), enemy_center) * glm::scale(glm::mat4(1.0f), enemy_extents);
 
-			lines.draw_box(enemy_draw_transform, glm::u8vec4(255, 180, 0, 255));
+			//lines.draw_box(enemy_draw_transform, glm::u8vec4(255, 180, 0, 255));
 
 			lines.draw_text(
 				std::to_string(enemy->health),
@@ -1089,8 +1122,8 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 							glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
 							glm::u8vec4(255, 255, 255, 255));
 
-		lines.draw_text(std::to_string(player.style_meter.getCoinMultiplier()) + "x  " + std::to_string(player.style_meter.style_cur),
-					glm::vec3(cam_pos.x - 10.0f, cam_pos.y - 6.5f, 0.0f),
+		lines.draw_text(std::format("{:.2f}", player.style_meter.getCoinMultiplier()) + "x  " + std::format("{:.2f}", player.style_meter.style_cur),
+					glm::vec3(cam_pos.x - 13.0f, cam_pos.y - 6.5f, 0.0f),
 					glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
 					glm::u8vec4(255, 255, 255, 255));
 
@@ -1256,7 +1289,5 @@ void PlayMode::drawChunk(RoomLayout const &layout, glm::vec2 room_origin, int do
 		{
 			death_zones.push_back({(hazard.min + offset) / PPU, (hazard.max + offset) / PPU});
 		}
-
 	}
-	
 }
