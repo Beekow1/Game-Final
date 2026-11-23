@@ -171,6 +171,15 @@ void Player::attemptJump()
         velocity.y = jump_force;
         jump_state = JumpState::Jumping;
     }
+    else if (jump_not_wasted && jump_buffer_timer > 0.0f && !is_grounded && !is_dashing && air_jumps_left > 0)
+    {
+        air_jumps_left--;
+        jump_not_wasted = false;
+        jump_buffer_timer = 0.0f;
+        velocity.y = jump_force * air_jump_mult;
+        jump_state = JumpState::Jumping; // so jump-cut still works
+        Sound::play_3D(*jump_sample, 0.3f, transform->position);
+    }
 }
 
 void Player::jumpArc()
@@ -371,7 +380,7 @@ void Player::dashBounce()
     }
 }
 
-int Player::calcualteDamage()
+int Player::calculateDamage()
 {
     switch (tech_state)
     {
@@ -395,6 +404,17 @@ int Player::calcualteDamage()
             return dash_damage;
         }
     }
+}
+
+void Player::applyItems()
+{
+    GameManager const &gm = GameManager::Get();
+    max_health      = base_max_health + gm.itemCount(ItemId::MaxHP);
+    max_dash_count  = base_max_dash_count + size_t(gm.itemCount(ItemId::Dash));
+    dash_damage     = base_dash_damage + 10 * gm.itemCount(ItemId::Attack);
+    max_air_jumps   = gm.itemCount(ItemId::Jump);
+    style_meter.style_decay = base_style_decay / (1.0f + 0.4f * float(gm.itemCount(ItemId::StyleDecay)));
+    health = std::min(health, max_health);
 }
 
 void Player::postAttackReset(float control_lock_time, bool refund_dash)
@@ -491,6 +511,7 @@ void runCollision(Player &player, const std::vector<Collider> &col_list)
                 player.jump_state = JumpState::Grounded;
                 player.coyote_timer = player.coyote_duration;
                 player.cur_dash_count = player.max_dash_count;
+                player.air_jumps_left = player.max_air_jumps;
 
                 if (player.is_dashing && player.latest_dash_dir.y < 0.0f)
                 {
@@ -522,6 +543,7 @@ void Player::reset(glm::vec2 position)
     dash_timer = 0.0f;
     tech_timer = 0.0f;
     cur_dash_count = max_dash_count;
+    air_jumps_left = max_air_jumps;
 
     coyote_timer = 0.0f;
     jump_buffer_timer = 0.0f;

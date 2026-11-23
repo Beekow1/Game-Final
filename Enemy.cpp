@@ -99,7 +99,8 @@ void Enemy::takeDamage(int amount, float coin_mult)
 
     if (health <= 0)
     {
+        int bonus = GameManager::Get().itemCount(ItemId::Coin);
         setBehaviorState(EnemyState::Dead);
-        GameManager::Get().enemyKilled((int)std::ceil(money * coin_mult));
+        GameManager::Get().enemyKilled((int)std::ceil((money + bonus) * coin_mult));
     }
 }

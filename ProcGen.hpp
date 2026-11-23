@@ -43,7 +43,7 @@ struct GenParams
     int cols = 10;
     size_t path_len = 25;
     int edge_buf = 2;
-    unsigned int seed = 42;
+    unsigned int seed = std::random_device{}();
     float straightness_bias = 1.0f;
 
     float room_scale = 512.0f;

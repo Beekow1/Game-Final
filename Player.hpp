@@ -60,7 +60,7 @@ struct Player
     float dash_timer = 0.0f;
     float tech_timer = 0.0f;
 
-    int dash_damage = 25;
+    int dash_damage = 17;
     float dash_bounce_speed = 20.0f;
     float dash_bounce_lift = 20.0f;
     float horiz_dash_bounce_control_time = 0.3f;
@@ -114,6 +114,16 @@ struct Player
     float move_sfx_time = 0.37f;
     float move_sfx_timer = 0.0f;
 
+    // item configs
+    size_t base_max_dash_count = 1;
+    int max_air_jumps = 0;
+    int air_jumps_left = 0;
+    float air_jump_mult = 0.85f;
+
+    int base_max_health = 3;
+    float base_style_decay = 0.1f; 
+    int base_dash_damage = 17; 
+
     void move(glm::vec2 input_dir, float elapsed);
 
     void updatePlayer(float elapsed);
@@ -132,7 +142,9 @@ struct Player
     bool takeDamage(int amount, glm::vec2 damage_source);
     void dashBounce();
 
-    int calcualteDamage();
+    int calculateDamage();
+
+    void applyItems();
 
     void postAttackReset(float control_lock_time, bool refund_dash);
 

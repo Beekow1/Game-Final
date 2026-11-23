@@ -34,6 +34,25 @@ Load<Sound::Sample> jump_sample(LoadTagDefault, []() -> Sound::Sample const *
 								{ return new Sound::Sample(data_path("Jump.wav")); });
 Load<Sound::Sample> step_sample(LoadTagDefault, []() -> Sound::Sample const *
 								{ return new Sound::Sample(data_path("Step.wav")); });
+								Load<Sound::Sample> music_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("Track01_Ambient.opus")); });
+Load<Sound::Sample> item_acquire_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("ItemAcquire.wav")); });
+Load<Sound::Sample> item_denied_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("ItemDenied.wav")); });
+Load<Sound::Sample> shop_music_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("Track02_Shop.opus")); });
+
+// ---- DEBUG (TODO: set to false for final build) ----
+// Skips the tutorial, spawns in the shop with 100 money and Radioactive (once per run).
+static constexpr bool DebugShopStart = false;
+
+static std::shared_ptr<Sound::PlayingSample> shop_loop;
+static constexpr float ShopMusicVolume = 0.6f;
+static constexpr float MusicFade = 0.75f; // seconds
+static std::shared_ptr<Sound::PlayingSample> music_loop;
+static constexpr float MusicVolume = 0.6f;
+
 
 Load<SpriteSheet> main_character_sheet(LoadTagDefault, []() -> SpriteSheet const *
 									   { return new SpriteSheet(data_path("sprites/main-character.png"), SpriteSheet::Info{
@@ -90,6 +109,12 @@ Load<SpriteSheet> heart_sheet(LoadTagDefault, []() -> SpriteSheet const *
 																					   {"Hearts", 2, 1.0f, false},
 																				   },
 																			   }); });
+
+Load<SpriteSheet> item_sheet(LoadTagDefault, []() -> SpriteSheet const *
+	{ return new SpriteSheet(data_path("sprites/item-icons.png"), SpriteSheet::Info{
+		.cell_size = glm::uvec2(16, 16),
+		.rows = { {"Items", 8, 1.0f, false} },
+	}); });
 
 static SpriteSheet *load_static_image(std::string const &file_path, glm::uvec2 size)
 {
@@ -151,6 +176,10 @@ static const std::vector<TutorialSign> tutorial_signs = {
 
 void PlayMode::buildShop(glm::vec2 origin_px)
 {
+	std::vector<float> weights; 
+	for (ItemDef const &d : ItemDefs) weights.push_back(d.shop_weight);
+	std::discrete_distribution<int> pick(weights.begin(), weights.end());
+
 	RoomLayout shop = load_room_layout(data_path("sprites/shop-layout.png"));
 	if (shop.item_px.size() != 6)
 	{
@@ -163,8 +192,8 @@ void PlayMode::buildShop(glm::vec2 origin_px)
 	{
 		ShopSlot slot;
 		slot.pos = (origin_px + shop.item_px[i]) / PPU; 
-		slot.price = 5 + 5 * int(i); // placeholder price
-		slot.icon = int(i); 
+		slot.item  = ItemId(pick(proc_gen.gen));
+		slot.price = itemDef(slot.item).price;
 		shop_slots.push_back(slot);
 	}
 	shopkeeper_pos = (origin_px + shop.keeper_px + glm::vec2(8.0f, 0.0f)) / PPU; 
@@ -174,10 +203,13 @@ void PlayMode::buildShop(glm::vec2 origin_px)
 
 void PlayMode::respawn()
 {
+	GameManager::Get().resetFloor();
+	player.applyItems();
 	player.reset(spawn_pos);
 
 	enemies.clear();
 	ghost_spawned = false;
+	total_time = 0.0f;
 
 	for (WorldEnemySpawn const &spawn : enemy_spawns)
 	{
@@ -222,6 +254,20 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 	lighting_program = load_lighting_program();
 	glGenVertexArrays(1, &lighting_vao);
 
+	if (DebugShopStart) // DEBUG
+	{
+		use_tutorial = false;
+		static bool debug_given = false; // only on the first floor, not every floor
+		if (!debug_given)
+		{
+			debug_given = true;
+			GameManager::Get().tutorial_done = true;
+			GameManager::Get().addMoney(100);
+			GameManager::Get().addItem(ItemId::Radioactive);
+		}
+	}
+
+	// must come after any debug money/items so the floor snapshot includes them
 	GameManager::Get().startFloor();
 
 	colliders.reserve(128);
@@ -248,6 +294,15 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 	colliders.emplace_back(player.collider);
 
 	Juice::Get().SetCamera(camera);
+
+	if (!music_loop || music_loop->stopped)
+	{
+		music_loop = Sound::loop(*music_sample, MusicVolume);
+	}
+	if (!shop_loop || shop_loop->stopped)
+	{
+		shop_loop = Sound::loop(*shop_music_sample, 0.0f);
+	}
 
 	if (use_tutorial)
 	{
@@ -320,6 +375,12 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 		}
 
 		void_y = lowest / PPU - 2.0f;
+
+		if (DebugShopStart && shop_interior) // DEBUG: spawn on the shop floor, left of the entry shaft
+		{
+			// shop_interior->min is shop origin + (80, 64) px -> spawn at origin + (200, 72) px (center, feet on y=64)
+			spawn_pos = glm::vec2(shop_interior->min) + glm::vec2(120.0f, 8.0f) / PPU;
+		}
 	}
 
 	respawn();
@@ -493,6 +554,7 @@ void PlayMode::update(float elapsed)
 	buy_pressed = false; 
 	anim_time += elapsed; 
 	denied_timer = std::max(0.0f, denied_timer - elapsed);
+	pickup_timer = std::max(0.0f, pickup_timer - elapsed);
 
 	elapsed = Juice::Get().checkDeltaTime(elapsed);
 	Juice::Get().update(elapsed);
@@ -532,6 +594,12 @@ void PlayMode::update(float elapsed)
 	}
 
 	bool in_shop = shop_interior && checkCollision(player.collider.getWorldSpaceAABB(), *shop_interior);
+	if (in_shop != was_in_shop)
+	{
+		was_in_shop = in_shop;
+		if (music_loop) music_loop->set_volume(in_shop ? 0.0f : MusicVolume, MusicFade);
+		if (shop_loop)  shop_loop->set_volume(in_shop ? ShopMusicVolume : 0.0f, MusicFade);
+	}
 	if (in_shop)
 	{
 		glm::vec2 center = glm::vec2(shop_interior->min + shop_interior->max) * 0.5f;
@@ -592,11 +660,25 @@ void PlayMode::update(float elapsed)
 		ShopSlot &s = shop_slots[hovered_slot];
 		if (GameManager::Get().spend(s.price))
 		{
-			s.sold = true;  // TODO : give item to player
+			s.sold = true;
+			ItemId got = s.item;
+			if (got == ItemId::Random) got = ItemId(proc_gen.getRand(0, int(ItemId::Random) - 1));
+			GameManager::Get().addItem(got);
+			player.applyItems();
+			pickup_was_random = (s.item == ItemId::Random);
+			pickup_item = got; 
+			pickup_timer = PickupDuration;
+			if (got == ItemId::MaxHP) {
+				player.health = player.max_health; // "+max hp & recover hp"
+			}
+			Sound::play(*item_acquire_sample, 0.5f);
+			Juice::Get().applyHitStop(0.05f);
+			
 		}
 		else
 		{
 			denied_timer = 0.6f;
+			Sound::play(*item_denied_sample, 0.5f);
 			Juice::Get().addTrauma(0.3f, 0.15f, glm::vec2(1.0f, 0.0f));
 		}
 	}
@@ -626,6 +708,17 @@ void PlayMode::update(float elapsed)
 		enemy->update(elapsed, colliders);
 	}
 
+	if (radStacks() > 0 && player.health > 0 && (rad_timer += elapsed) >= 1.0f)
+	{
+		rad_timer -= 1.0f;
+		glm::vec2 pp = glm::vec2(player.transform->position);
+		float radius = radRadius();
+		int damage = radDamage();
+		for (auto const &e : enemies)
+			if (glm::distance(pp, glm::vec2(e->transform.position)) < radius)
+				e->takeDamage(damage, player.style_meter.getCoinMultiplier());
+	}
+
 	// replaced enemy erase statement and moved outside of loop
 	// because it would cause a bug when the dummy died
 	std::erase_if(enemies, [](auto const &e)
@@ -649,7 +742,7 @@ void PlayMode::update(float elapsed)
 
 			if (player.is_attacking && std::find(player.hit_enemies.begin(), player.hit_enemies.end(), enemy.get()) == player.hit_enemies.end())
 			{
-				enemy->takeDamage(player.calcualteDamage(), player.style_meter.getCoinMultiplier());
+				enemy->takeDamage(player.calculateDamage(), player.style_meter.getCoinMultiplier());
 				player.dashBounce();
 				player.hit_enemies.push_back(enemy.get());
 				break;
@@ -766,6 +859,18 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			}
 		}
 	}
+
+	// items
+	{
+		DrawSprites icons(*item_sheet, view_proj);
+		for (size_t i = 0; i < shop_slots.size(); i++)
+		{
+			ShopSlot const &s = shop_slots[i];
+			if (s.sold) continue;
+			float bob_px = std::round(2.0f * std::sin(anim_time * 3.0f + float(i))); // whole pixels = no shimmer
+			icons.draw(0, uint32_t(s.item), s.pos * PPU + glm::vec2(0.0f, 2.0f + bob_px));
+		}
+	}
 	
 	{ // player
 		AABB box = player.collider.getWorldSpaceAABB();
@@ -811,6 +916,12 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 			vis_lights.push_back(light);
 		}
+
+		if (radStacks() > 0) // glow radius == damage radius so the player can read the range
+			vis_lights.push_back(Light{ .position = glm::vec2(player.transform->position),
+				.color = glm::vec3(0.4f, 1.0f, 0.3f), .radius = radRadius(),
+				.intensity = 0.8f + 0.2f * std::sin(anim_time * 4.0f), .do_march = true });
+
 		std::sort(
 			vis_lights.begin(),
 			vis_lights.end(),
@@ -923,6 +1034,41 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	{
 		DrawLines lines(world_to_clip);
 
+		if (pickup_timer > 0.0f)
+		{
+			float t = 1.0f - pickup_timer / PickupDuration; 
+			float rise = 1.0f - (1.0f - t) * (1.0f - t);      // ease out 
+			glm::vec2 head_px = glm::floor(glm::vec2(player.transform->position) * PPU);
+			glm::vec2 icon_feet = head_px + glm::vec2(0.0f, 14.0f + std::round(10.0f * rise));
+
+			// Mystery icon reveals after short duration
+			bool revealing = pickup_was_random && t < 0.35f;
+			uint32_t frame = uint32_t(revealing ? ItemId::Random : pickup_item);
+			if (revealing) icon_feet.x += std::round(std::sin(anim_time * 60.0f)); 
+
+			// blink out over the last few seconds
+			bool visible = pickup_timer > 0.3f || int(pickup_timer * 20.0f) % 2 == 0;
+
+			if (visible)
+			{
+				{
+					DrawSprites pop(*item_sheet, view_proj);
+					pop.draw(0, frame, icon_feet);
+				}
+
+				if (!revealing)
+				{
+					std::string name = itemDef(pickup_item).name;
+					float size = 0.5f;
+					glm::vec2 text_pos = icon_feet / PPU + glm::vec2(0.0f, 1.2f); // just above the icon
+					lines.draw_text(name,
+						glm::vec3(text_pos.x - 0.2f * size * float(name.size()), text_pos.y, 0.0f),
+						glm::vec3(size, 0.0f, 0.0f), glm::vec3(0.0f, size, 0.0f),
+						glm::u8vec4(255, 255, 255, 255));
+				}
+			}
+		}
+
 		if (use_tutorial)
 		{
 			for (TutorialSign const &sign : tutorial_signs)
@@ -964,18 +1110,10 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 				glm::u8vec4(255, 255, 255, 255));
 		}
 
-		// TODO: replace with actual shop icons rather than DrawLines code
 		for (size_t i = 0; i < shop_slots.size(); i++)
 		{
 			ShopSlot const &s = shop_slots[i];
 			if (s.sold) continue;
-
-			float bob = 0.15f * std::sin(anim_time * 3.0f + float(i));
-			glm::vec3 center = glm::vec3(s.pos + glm::vec2(0.0f, 0.5f + bob), 0.0f);
-			lines.draw_box(glm::translate(glm::mat4(1.0f), center) *
-						glm::scale(glm::mat4(1.0f), glm::vec3(0.4f)),
-						glm::u8vec4(255, 220, 120, 255));   // placeholder icon
-
 			std::string price = std::to_string(s.price);
 			bool affordable = GameManager::Get().getMoney() >= s.price;
 			float size = 0.5f;
@@ -983,15 +1121,11 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 				glm::vec3(s.pos.x - 0.2f * size * float(price.size()), s.pos.y - 0.6f, 0.0f),
 				glm::vec3(size, 0.0f, 0.0f), glm::vec3(0.0f, size, 0.0f),
 				affordable ? glm::u8vec4(255, 230, 120, 255) : glm::u8vec4(220, 80, 80, 255));
-
 			if (int(i) == hovered_slot)
-			{
-				lines.draw_text("E: BUY",
-					glm::vec3(s.pos.x - 0.6f, s.pos.y + 1.4f, 0.0f),
-					glm::vec3(size, 0.0f, 0.0f), glm::vec3(0.0f, size, 0.0f),
-					glm::u8vec4(255, 255, 255, 255));
-			}
+				lines.draw_text("E: BUY", glm::vec3(s.pos.x - 0.6f, s.pos.y + 1.4f, 0.0f),
+					glm::vec3(size, 0.0f, 0.0f), glm::vec3(0.0f, size, 0.0f), glm::u8vec4(255, 255, 255, 255));
 		}
+
 
 		if (denied_timer > 0.0f)
 		{
@@ -1048,6 +1182,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		}
 	}
 
+
 	float scale_x = (float)drawable_size.x / PixelWidth;
 	float scale_y = (float)drawable_size.y / PixelHeight;
 
@@ -1080,7 +1215,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glEnable(GL_FRAMEBUFFER_SRGB);
 
-	{ // Health HUD: fixed screen coordinates.
+	{ // HUD: fixed screen coordinates.
 		const glm::mat4 ui_proj = glm::ortho(0.0f, static_cast<float>(PixelWidth), 0.0f, static_cast<float>(PixelHeight));
 
 		constexpr float gap = 2.0f;
@@ -1094,6 +1229,41 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		{
 			hearts.draw(0, (player.max_health - i - 1 < player.health) ? 0u : 1u, glm::vec2(x, bot));
 			x += 16.0f + gap;
+		}
+
+		float ibot = bot - 16.0f - gap;
+		float ix0 = margin + 8.0f;
+
+		{ // icons — scope so they flush before the counts
+			DrawSprites item_icons(*item_sheet, ui_proj);
+			float ix = ix0;
+			for (size_t id = 0; id < size_t(ItemId::Random); id++)
+			{
+				if (GameManager::Get().itemCount(ItemId(id)) == 0) continue;
+				item_icons.draw(0, uint32_t(id), glm::vec2(ix, ibot));
+				ix += 16.0f + gap;
+			}
+		}
+
+		{ // stack counts (only when > 1)
+			DrawLines counts(ui_proj);
+			constexpr float size = 6.0f; 
+			float ix = ix0;
+			for (size_t id = 0; id < size_t(ItemId::Random); id++)
+			{
+				int n = GameManager::Get().itemCount(ItemId(id));
+				if (n == 0) continue;
+				if (n > 1)
+				{
+					std::string label = std::to_string(n);
+					glm::vec3 at(ix + 3.0f, ibot - 1.0f, 0.0f); // bottom-right corner of the icon
+					counts.draw_text(label, at + glm::vec3(1.0f, -1.0f, 0.0f),
+						glm::vec3(size, 0, 0), glm::vec3(0, size, 0), glm::u8vec4(0, 0, 0, 255));       // shadow
+					counts.draw_text(label, at,
+						glm::vec3(size, 0, 0), glm::vec3(0, size, 0), glm::u8vec4(255, 255, 255, 255)); // text
+				}
+				ix += 16.0f + gap;
+			}
 		}
 	}
 

@@ -1,5 +1,6 @@
 #pragma once
 #include <utility>
+#include "Items.hpp"
 
 struct GameManager
 {
@@ -13,6 +14,8 @@ struct GameManager
         int quota_enemies = 0;
         int total_enemies = 0;
         int quota_unit_price = 5;
+        std::array<int, ItemCount> items{};
+        std::array<int, ItemCount> floor_start_items{}; // save between floors
 
 
     public:
@@ -21,12 +24,14 @@ struct GameManager
         void startFloor()
         {
             floor_start_money = money;
+            floor_start_items = items;
             resetFloor();
         }
 
         void resetFloor()
         {
             money = floor_start_money; 
+            items = floor_start_items;
             enemies_killed = 0;
         }
 
@@ -69,5 +74,13 @@ struct GameManager
         { 
             enemies_killed++; 
             addMoney(mon);
+        }
+
+        // item functions
+        void addItem(ItemId id) {
+            items[size_t(id)]++; 
+        }
+        int itemCount(ItemId id) const {
+            return items[size_t(id)];
         }
 };

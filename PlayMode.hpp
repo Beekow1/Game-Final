@@ -6,6 +6,7 @@
 #include "Player.hpp"
 #include "Enemy.hpp"
 #include "GameManager.hpp"
+#include "Items.hpp"
 
 #include "SpriteAnimator.hpp"
 #include "SpriteSheet.hpp"
@@ -60,12 +61,18 @@ struct PlayMode : Mode
 	std::vector<AABB> death_zones; 
 	float void_y = -2.0f; 
 
+	// item pop
+	ItemId pickup_item = ItemId::MaxHP;
+	bool pickup_was_random = false;
+	float pickup_timer = 0.0f;
+	static constexpr float PickupDuration = 1.2f;
+
 	// shop structure
 	struct ShopSlot
 	{
 		glm::vec2 pos; // world units, lowest point of item
 		int price = 0;
-		int icon = 0;
+		ItemId item = ItemId::MaxHP;
 		bool sold = false;
 	};
 	std::vector<ShopSlot> shop_slots; 
@@ -76,11 +83,12 @@ struct PlayMode : Mode
 	float denied_timer = 0.0f; 
 	float anim_time = 0.0f;
 
+	bool was_in_shop = false;
+
 	void buildShop(glm::vec2 origin_px);
 
 	// exit door
 	std::optional<AABB> exit_zone; // world units, empty = no exit 
-
 
 	void respawn();
 
@@ -90,13 +98,23 @@ struct PlayMode : Mode
 	Player player;
 	ProcGen proc_gen;
 	GenParams gen_params;
-	float quota = 0.5f;
+	float quota = 0.4f;
 
 	float total_time = 0.0f;
 
 	std::vector<std::unique_ptr<Enemy>> enemies;
 
 	bool ghost_spawned = false;
+
+	// Radioactive aura: stacks scale both radius and damage
+	float rad_timer = 0.0f;
+	static constexpr float RadBaseRadius = 4.0f;     // world units (tiles) with 1 stack
+	static constexpr float RadRadiusPerStack = 2.0f; // added per extra stack
+	static constexpr int RadDamagePerStack = 3;      // damage per second
+
+	int radStacks() const { return GameManager::Get().itemCount(ItemId::Radioactive); }
+	float radRadius() const { return RadBaseRadius + RadRadiusPerStack * float(std::max(0, radStacks() - 1)); }
+	int radDamage() const { return RadDamagePerStack * radStacks(); }
 
 	struct StaticSprite
 	{
