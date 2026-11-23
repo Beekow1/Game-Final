@@ -7,7 +7,7 @@ const float HIT_EPSILON = 0.16;
 
 const float light_levels = 8.0;
 
-const vec4 AMBIENT = vec4(0.6, 0.6, 0.6, 1.0);
+const vec4 AMBIENT = vec4(0.3, 0.3, 0.3, 1.0);
 
 uniform int BLOCKER_COUNT;
 uniform vec4 BLOCKER_BBS[MAX_BLOCKERS];

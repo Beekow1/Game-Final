@@ -124,7 +124,10 @@ struct PlayMode : Mode
 	glm::vec2 input_dir = glm::vec2(0.0f);
 
 	// car honk sound:
-	std::shared_ptr<Sound::PlayingSample> honk_oneshot;
+	std::shared_ptr<Sound::PlayingSample> dash_oneshot;
+	std::shared_ptr<Sound::PlayingSample> jump_oneshot;
+	std::shared_ptr<Sound::PlayingSample> attack_hit_oneshot;
+	std::shared_ptr<Sound::PlayingSample> step_oneshot;
 
 	// camera:
 	Scene::Camera *camera = nullptr;

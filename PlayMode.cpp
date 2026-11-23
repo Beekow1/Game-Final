@@ -26,11 +26,14 @@
 
 #include <random>
 
-Load<Sound::Sample> dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const *
-									   { return new Sound::Sample(data_path("dusty-floor.opus")); });
-
-Load<Sound::Sample> honk_sample(LoadTagDefault, []() -> Sound::Sample const *
-								{ return new Sound::Sample(data_path("honk.wav")); });
+Load<Sound::Sample> dash_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("Dash.wav")); });
+Load<Sound::Sample> attack_hit_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("Attack.wav")); });
+Load<Sound::Sample> jump_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("Jump.wav")); });
+Load<Sound::Sample> step_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("Step.wav")); });
 
 Load<SpriteSheet> main_character_sheet(LoadTagDefault, []() -> SpriteSheet const *
 									   { return new SpriteSheet(data_path("sprites/main-character.png"), SpriteSheet::Info{
@@ -411,8 +414,6 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 		{
 			player.jump_not_wasted = true;
 			player.jump_buffer_timer = player.jump_buffer_duration;
-			// if (honk_oneshot) honk_oneshot->stop();
-			// honk_oneshot = Sound::play_3D(*honk_sample, 0.3f, glm::vec3(4.6f, -7.8f, 6.9f)); //hardcoded position of front of car, from blender
 		}
 		else if (evt.key.key == SDLK_R)
 		{
