@@ -79,6 +79,13 @@ Load<SpriteSheet> exploding_rat_sheet(LoadTagDefault, []() -> SpriteSheet const 
 																										   {"Idle", 4, 10.0f, true},
 																									   },
 																								   }); });
+Load<SpriteSheet> explosion_sheet(LoadTagDefault, []() -> SpriteSheet const *
+									  { return new SpriteSheet(data_path("ExplosiveRatSheet.png"), SpriteSheet::Info{
+																									   .cell_size = glm::uvec2(48, 24),
+																									   .rows = {
+																										   {"Explode", 3, 12.0f, true},
+																									   },
+																								   }); });
 
 Load<SpriteSheet> heart_sheet(LoadTagDefault, []() -> SpriteSheet const *
 							  { return new SpriteSheet(data_path("Heart.png"), SpriteSheet::Info{
@@ -169,6 +176,48 @@ void PlayMode::buildShop(glm::vec2 origin_px)
 						glm::vec3((origin_px + glm::vec2(432.0f, 288.0f)) / PPU, 0.0f)};
 }
 
+void PlayMode::processExplosions()
+{
+    constexpr float BlastRadius = 1.5f;
+    constexpr int PlayerDamage = 1;
+    constexpr int ExplosionDamage = 25;
+
+    for (auto const &enemy : enemies)
+    {
+        if (enemy->enemyType == EnemyType::ExplodingRat && enemy->state == EnemyState::Dead)
+        {
+			explosions.push_back({enemy->transform.position, 0.0f});
+			
+			glm::vec2 player_delta = glm::clamp(glm::vec2(enemy->transform.position), glm::vec2(player.collider.getWorldSpaceAABB().min), glm::vec2(player.collider.getWorldSpaceAABB().max)) - glm::vec2(enemy->transform.position);
+			bool player_inside_blast = glm::dot(player_delta, player_delta) <= BlastRadius * BlastRadius;
+
+			if (player_inside_blast)
+			{
+				player.takeDamage(PlayerDamage, enemy->transform.position);
+			}
+
+			for (auto const &target : enemies)
+			{
+				if (target->state == EnemyState::Dead || target->enemyType == EnemyType::Ghost)
+					continue;
+
+				glm::vec2 enemy_delta = glm::clamp(glm::vec2(enemy->transform.position), glm::vec2(target->collider.getWorldSpaceAABB().min), glm::vec2(target->collider.getWorldSpaceAABB().max)) - glm::vec2(enemy->transform.position);
+				bool enemy_inside_blast = glm::dot(enemy_delta, enemy_delta) <= BlastRadius * BlastRadius;
+
+				if (enemy_inside_blast){
+					target->takeDamage(ExplosionDamage, player.style_meter.getCoinMultiplier());
+					if (target->state == EnemyState::Dead && target->enemyType == EnemyType::ExplodingRat)
+					{
+						processExplosions();
+						return;
+					}
+				}
+			}
+		}
+    }
+}
+
+
 void PlayMode::respawn()
 {
 	player.reset(spawn_pos);
@@ -184,6 +233,10 @@ void PlayMode::respawn()
 
 		else if(spawn.type == EnemyType::Rat){
 			enemies.emplace_back(std::make_unique<RatEnemy>(spawn.position,	*rat_sheet));
+		}
+		else if (spawn.type == EnemyType::ExplodingRat)
+		{
+			enemies.emplace_back(std::make_unique<RatEnemy>(spawn.position,	*exploding_rat_sheet, true));
 		}
 	}
 
@@ -496,6 +549,16 @@ void PlayMode::update(float elapsed)
 	elapsed = Juice::Get().checkDeltaTime(elapsed);
 	Juice::Get().update(elapsed);
 
+	for (ExplosionVFX &fx : explosions)
+	{
+		fx.age += elapsed;
+	}
+
+	std::erase_if(explosions, [&](ExplosionVFX const &effect)
+	{
+		return effect.age >= float(explosion_sheet->info.rows[0].frames) / explosion_sheet->info.rows[0].fps;
+	});
+
 	player.jump_buffer_timer -= elapsed;
 
 	if (!player.is_grounded)
@@ -625,11 +688,6 @@ void PlayMode::update(float elapsed)
 		enemy->update(elapsed, colliders);
 	}
 
-	// replaced enemy erase statement and moved outside of loop
-	// because it would cause a bug when the dummy died
-	std::erase_if(enemies, [](auto const &e)
-				  { return e->state == EnemyState::Dead; });
-
 	if (player.health > 0)
 	{
 		const AABB player_bounds = player.collider.getWorldSpaceAABB();
@@ -645,7 +703,7 @@ void PlayMode::update(float elapsed)
 			{
 				continue;
 			}
-
+			
 			if (player.is_attacking && std::find(player.hit_enemies.begin(), player.hit_enemies.end(), enemy.get()) == player.hit_enemies.end())
 			{
 				enemy->takeDamage(player.calcualteDamage(), player.style_meter.getCoinMultiplier());
@@ -655,10 +713,22 @@ void PlayMode::update(float elapsed)
 			}
 			else if (player.takeDamage(enemy->contact_damage, glm::vec2(enemy->transform.position)))
 			{
+				if (enemy->enemyType == EnemyType::ExplodingRat)
+				{
+					enemy->takeDamage(enemy->health, 0.0f);
+				}
 				break;
 			}
 		}
 	}
+
+	processExplosions();
+
+	// replaced enemy erase statement and moved outside of loop
+	// because it would cause a bug when the dummy died
+	std::erase_if(enemies, [](auto const &e)
+				  { return e->state == EnemyState::Dead; });
+
 
 	if (exit_zone && checkCollision(player.collider.getWorldSpaceAABB(), *exit_zone))
 	{
@@ -780,6 +850,17 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			glm::vec2 feet = glm::vec2(e->transform.position.x, box.min.y) * PPU;
 			DrawSprites sprites(e->anim.sheet, view_proj);
 			sprites.draw(e->anim.row, e->anim.frame(), feet, e->facing_left);
+		}
+	}
+
+	{ //explosion
+		DrawSprites sprites(*explosion_sheet, view_proj);
+
+		for (ExplosionVFX const &effect : explosions)
+		{
+			uint32_t frame = std::clamp(static_cast<uint32_t>(effect.age * explosion_sheet->info.rows[0].fps), 0u, explosion_sheet->info.rows[0].frames - 1u);
+
+			sprites.draw(0, frame, effect.position * PPU - glm::vec2(0.0f, float(explosion_sheet->info.cell_size.y)/2.f));
 		}
 	}
 

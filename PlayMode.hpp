@@ -98,6 +98,16 @@ struct PlayMode : Mode
 
 	bool ghost_spawned = false;
 
+	struct ExplosionVFX
+	{
+		glm::vec2 position; 
+		float age = 0.0f;
+	};
+
+	std::vector<ExplosionVFX> explosions;
+
+	void processExplosions();
+
 	struct StaticSprite
 	{
 		SpriteSheet const *sheet = nullptr;
