@@ -129,7 +129,7 @@ if (maek.OS === 'windows') {
 	copies.push( maek.COPY(`${NEST_LIBS}/SDL3/dist/SDL3.dll`, `scenes/SDL3.dll`) );
 }
 
-const sprite_names = [ 'main-character', 'Dummy' , 'tutorial-layout', 'tutorial-room', 'shop-layout', 'shop-room']; // TODO: replace with the actual character or other sprite names
+const sprite_names = [ 'main-character', 'Dummy' , 'tutorial-layout', 'tutorial-room', 'shop-layout', 'shop-room', 'default-layout']; // TODO: replace with the actual character or other sprite names
 const sprites = sprite_names.map(name => maek.COPY(`sprites/${name}.png`, `dist/sprites/${name}.png`));
 
 
@@ -151,7 +151,7 @@ const game_names = [
 	maek.CPP('Juice.cpp'),
 	maek.CPP('main.cpp'),
 	maek.CPP('LitColorTextureProgram.cpp'),
-	maek.CPP('RoomTemplate.cpp'),
+	maek.CPP('RoomLayout.cpp'),
 	maek.CPP('ColorTextureProgram.cpp'),
 	maek.CPP('Sound.cpp'),
 	maek.CPP('load_wav.cpp'),

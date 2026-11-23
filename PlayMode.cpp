@@ -26,18 +26,6 @@
 
 #include <random>
 
-struct RoomLayout
-{
-	glm::uvec2 size_px = glm::uvec2(0);
-	std::vector<AABB> solids;
-	glm::vec2 spawn_px = glm::vec2(0.0f);
-	std::vector<glm::vec2> dummy_px;
-	glm::vec2 exit_px = glm::vec2(0.0f);
-	std::vector<AABB> hazards; 
-	std::vector<glm::vec2> item_px;
-	glm::vec2 keeper_px = glm::vec2(0.0f);
-};
-
 Load<Sound::Sample> dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const *
 									   { return new Sound::Sample(data_path("dusty-floor.opus")); });
 
@@ -153,168 +141,6 @@ static const std::vector<TutorialSign> tutorial_signs = {
 	{glm::vec2(86.1f, 7.4f), 1.0f, "EXIT"},
 };
 
-static RoomLayout load_room_layout(std::string const &path)
-{
-	constexpr uint32_t Tile = 16;
-	
-	enum class TileKind {
-		Empty, 
-		Solid, 
-		Hazard
-	};
-
-	RoomLayout layout;
-	std::vector<glm::u8vec4> pixels;
-	load_png(path, &layout.size_px, &pixels, LowerLeftOrigin);
-
-	if (layout.size_px.x % Tile != 0 || layout.size_px.y % Tile != 0)
-	{
-		throw std::runtime_error("Room layout '" + path + "' is not a multiple of 16px.");
-	}
-
-	uint32_t tiles_x = layout.size_px.x / Tile;
-	uint32_t tiles_y = layout.size_px.y / Tile;
-
-	for (uint32_t ty = 0; ty < tiles_y; ty++)
-	{
-		TileKind run_kind = TileKind::Empty;
-		uint32_t run_start = 0;
-
-		for (uint32_t tx = 0; tx <= tiles_x; tx++)
-		{
-			TileKind kind = TileKind::Empty;
-
-			if (tx < tiles_x)
-			{
-				glm::u8vec4 c = pixels[(ty * Tile + Tile / 2) * layout.size_px.x + (tx * Tile + Tile / 2)];
-				glm::vec2 feet = glm::vec2(float(tx * Tile + Tile / 2), float(ty * Tile));
-
-				if (c.a == 0)
-				{
-					// layout loading goes here
-					// if you add colors, add them here
-				}
-				else if (c.r == 0 && c.g == 0 && c.b == 0)
-				{ // black = solid wall
-					kind = TileKind::Solid;
-				} 
-				else if (c.r == 255 && c.g == 128 && c.b == 0)
-				{ // orange (255, 128, 0) = void / pit / hazard
-					kind = TileKind::Hazard;
-				}
-				else if (c.r == 0 && c.g == 255 && c.b == 0)
-				{ // green (0, 255, 0) = spawn point
-					layout.spawn_px = feet;
-				}
-				else if (c.r == 255 && c.g == 0 && c.b == 0)
-				{ // red (255, 0, 0) = dummy spawn
-					layout.dummy_px.push_back(feet);
-				}
-				else if (c.r == 255 && c.g == 255 && c.b == 0) { } // previously: items
-				else if (c.r == 255 && c.g == 0 && c.b == 255) 
-				{ // magenta (255, 0, 255) = shopkeeper / npc spawn
-					layout.keeper_px = feet; 
-				}
-				else if (c.r == 0 && c.g == 0 && c.b == 255)
-				{ // blue (0, 0, 255) = exit door
-					layout.exit_px = feet;
-				}
-				else
-				{
-					throw std::runtime_error("Uknown color in room layout at tile (" + std::to_string(tx) + ", " + std::to_string(ty) + ").");
-				}
-			}
-
-			if (kind != run_kind)
-			{
-				if (run_kind != TileKind::Empty)
-				{
-					AABB box; 
-					box.min = glm::vec3(float(run_start * Tile), float(ty * Tile), 0.0f);
-					box.max = glm::vec3(float(tx * Tile), float((ty + 1) * Tile), 0.0f);
-					(run_kind == TileKind::Solid ? layout.solids : layout.hazards).push_back(box);
-				}
-				run_kind = kind;
-				run_start = tx;
-			}
-		}
-	}
-	
-	//aabb vertical merge
-	auto merge_vertical = [&](std::vector<AABB> &aabbs)
-	{
-		for (size_t i = 0; i < aabbs.size(); i++)
-		{
-			bool merged = true;
-
-			while (merged)
-			{
-				merged = false;
-
-				for (size_t j = i + 1; j < aabbs.size(); j++)
-				{
-					AABB& a = aabbs[i];
-					AABB& b = aabbs[j];
-
-					bool same_x =
-						a.min.x == b.min.x &&
-						a.max.x == b.max.x;
-
-					bool touching =
-						a.max.y == b.min.y ||
-						b.max.y == a.min.y;
-
-					if (same_x && touching)
-					{
-						a.min.y = std::min(a.min.y, b.min.y);
-						a.max.y = std::max(a.max.y, b.max.y);
-
-						aabbs.erase(aabbs.begin() + j);
-
-						merged = true;
-						break;
-					}
-				}
-			}	
-		}
-	};
-
-	merge_vertical(layout.solids);
-	merge_vertical(layout.hazards);
-
-	// item markers
-	auto is_yellow = [&](uint32_t px_x, uint32_t px_y)
-	{
-		glm::u8vec4 c = pixels[px_y * layout.size_px.x + px_x];
-		return c.a != 0 && c.r == 255 && c.g == 255 && c.b == 0;
-	};
-
-	for (uint32_t y = 0; y < layout.size_px.y; y++)
-	{
-		bool in_run = false;
-		uint32_t run_start = 0;
-		for (uint32_t x = 0; x <= layout.size_px.x; x++)
-		{
-			bool yellow = false;
-			if (x < layout.size_px.x)
-			{
-				yellow = is_yellow(x, y) && !(y > 0 && is_yellow(x, y - 1));
-			}
-			if (yellow && !in_run)
-			{
-				in_run = true;
-				run_start = x;
-			}
-			else if (!yellow && in_run)
-			{
-				in_run = false;
-				layout.item_px.push_back(glm::vec2(0.5f * float(run_start + x), float(y)));
-			}
-		}
-	}
-
-	return layout;
-}
 
 void PlayMode::buildShop(glm::vec2 origin_px)
 {
@@ -341,51 +167,25 @@ void PlayMode::buildShop(glm::vec2 origin_px)
 void PlayMode::respawn()
 {
 	player.reset(spawn_pos);
+
 	enemies.clear();
 	ghost_spawned = false;
-	if (use_tutorial)
+
+	for (WorldEnemySpawn const &spawn : enemy_spawns)
 	{
-		for (glm::vec2 p : dummy_spawns)
-		{
-			enemies.emplace_back(std::make_unique<DummyEnemy>(p, *dummy_sheet));
+		if(spawn.type == EnemyType::Dummy){
+			enemies.emplace_back(std::make_unique<DummyEnemy>(spawn.position, *dummy_sheet));
 		}
-	}
-	else
-	{
-		for (const auto &room : proc_gen.active_rooms)
-		{
-			if (room->kind == RoomKind::Shop) continue;
-			const auto &room_template =
-				get_room_templates(static_cast<int>(room->template_id));
 
-			const glm::vec2 origin(room->world_x, room->world_y);
-
-			for (const auto &spawn : room_template.enemies)
-			{
-				const glm::vec2 position =
-					(origin + spawn.local_px) / PPU;
-
-				switch (spawn.type)
-				{
-				case EnemyType::Dummy:
-					enemies.emplace_back(std::make_unique<DummyEnemy>(position, *dummy_sheet));
-					break;
-
-				case EnemyType::Rat:
-					enemies.emplace_back(std::make_unique<RatEnemy>(position, *rat_sheet));
-					break;
-
-				case EnemyType::ExplodingRat:
-					break;
-				}
-			}
+		else if(spawn.type == EnemyType::Rat){
+			enemies.emplace_back(std::make_unique<RatEnemy>(spawn.position,	*rat_sheet));
 		}
 	}
 
-	for (auto &s : shop_slots)
-	{
-		s.sold = false;
-	}
+    for (auto &slot : shop_slots)
+    {
+        slot.sold = false;
+    }
 
 	cam_pos = spawn_pos;
 	camera->transform->position = glm::vec3(cam_pos, 0.0f);
@@ -439,9 +239,9 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 
 		room_size = glm::vec2(tutorial.size_px) / PPU;
 		spawn_pos = feet_to_center(tutorial.spawn_px);
-		for (glm::vec2 d : tutorial.dummy_px)
+		for (RoomEnemySpawn const &spawn : tutorial.enemies)
 		{
-			dummy_spawns.push_back(feet_to_center(d));
+			enemy_spawns.push_back({spawn.type, feet_to_center(spawn.feet_px)});
 		}
 		for (AABB const &h : tutorial.hazards)
 		{
@@ -451,53 +251,45 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 	}
 	else
 	{ // room generation
-		create_room_templates();
-		create_templates_with_doors();
-		proc_gen.params.room_scale = 512;
+		std::vector<RoomLayout> layouts = {load_room_layout(data_path("sprites/default-layout.png"), &*default_room_sheet)};
+
+		proc_gen.params.room_scale = 512.0f;
 		proc_gen.generateLevel();
 		proc_gen.addShopRoom();
 		proc_gen.printGrid();
 
-		spawn_pos = glm::vec2(160.0f, 153.0f) / PPU;
+		float lowest = 0.0f;
 
-		glm::vec2 spawn_pos2 = glm::vec2(100.0f, 50.0f); 
-
-
-		float lowest = 0.0f; 
 		for (auto const &room : proc_gen.active_rooms)
 		{
 			lowest = std::min(lowest, room->world_y);
-		}
-		for (auto &room : proc_gen.active_rooms)
-		{
-			enemies.emplace_back(std::make_unique<DummyEnemy>(glm::vec2(room->world_x, room->world_y) + spawn_pos2, *dummy_sheet));
 
 			if (room->kind == RoomKind::Shop)
 			{
 				buildShop(glm::vec2(room->world_x, room->world_y));
-				// shop test spawn
-				// spawn_pos = glm::vec2(room->world_x + 256.0f, room->world_y + 40.0f) / PPU; 
 				continue;
 			}
-			std::vector<int> bucket = get_templates_with_doors(room->doors);
-			if (!bucket.empty())
-			{
-				int pick = proc_gen.getRand(0, (int)(bucket.size() - 1));
-				int template_id = bucket[pick];
-				room->template_id = template_id;
-				RoomTemplate t = get_room_templates(template_id);
-				if (room->kind == RoomKind::Shop) t.enemies.clear(); 
-				drawChunk(t, glm::vec2(room->world_x, room->world_y));
 
-				if (room->kind == RoomKind::End)
-				{
-					// TODO: REPLACE WITH END ROOM LAYOUT 
-					// Currently temporary bottom left-ish placement
-					glm::vec2 o = glm::vec2(room->world_x + 176.0f, room->world_y + 48.0f) / PPU;
-					exit_zone = AABB{glm::vec3(o.x - 0.5f, o.y, 0.0f), glm::vec3(o.x + 0.5f, o.y + 2.0f, 0.0f)};
-				}
+			int pick = proc_gen.getRand(0, int(layouts.size()) - 1);
+			RoomLayout const &layout = layouts[pick];
+
+			drawChunk(layout, glm::vec2(room->world_x, room->world_y), room->doors);
+
+			if (room->kind == RoomKind::Start)
+			{
+				glm::vec2 local_center = layout.has_spawn ? layout.spawn_px + glm::vec2(0.0f, 0.5f * PPU) : glm::vec2(160.0f, 153.0f);
+				spawn_pos = (glm::vec2(room->world_x, room->world_y) + local_center) / PPU;
+			}
+
+			if (room->kind == RoomKind::End)
+			{
+				glm::vec2 local_feet = layout.has_exit ? layout.exit_px : glm::vec2(176.0f, 48.0f);
+				glm::vec2 feet = (glm::vec2(room->world_x, room->world_y) + local_feet) / PPU;
+
+				exit_zone = AABB{glm::vec3(feet.x - 0.5f, feet.y, 0.0f), glm::vec3(feet.x + 0.5f, feet.y + 2.0f, 0.0f)};
 			}
 		}
+
 		void_y = lowest / PPU - 2.0f;
 	}
 
@@ -1273,27 +1065,52 @@ Scene::Transform *PlayMode::addLevelSprite(SpriteSheet const &sheet, glm::vec2 b
 	return sprite_transform;
 }
 
-void PlayMode::drawChunk(RoomTemplate template_room, glm::vec2 room_origin)
+void PlayMode::drawChunk(RoomLayout const &layout, glm::vec2 room_origin, int doors)
 {
 	{
-		std::vector<AABB> room_colliders = template_room.colliders;
+		std::vector<AABB> room_colliders = layout.solids;
 
-		if (!(template_room.doors & Doors::Left))
+		if (!(doors & Doors::Left))
 
 			room_colliders.push_back({glm::vec3(0.0f, 64.0f, 0.0f), glm::vec3(16.0f, 128.0f, 0.0f)});
 
-		if (!(template_room.doors & Doors::Right))
+		if (!(doors & Doors::Right))
 
 			room_colliders.push_back({glm::vec3(496.0f, 64.0f, 0.0f), glm::vec3(512.0f, 128.0f, 0.0f)});
 
-		if (!(template_room.doors & Doors::Down))
+		if (!(doors & Doors::Down))
 
 			room_colliders.push_back({glm::vec3(224.0f, 0.0f, 0.0f), glm::vec3(288.0f, 48.0f, 0.0f)});
 
-		if (!(template_room.doors & Doors::Up))
+		if (!(doors & Doors::Up))
 
 			room_colliders.push_back({glm::vec3(240.0f, 496.0f, 0.0f), glm::vec3(272.0f, 512.0f, 0.0f)});
 
-		addLevelSprite(*default_room_sheet, room_origin, false, room_colliders);
+		addLevelSprite(*layout.sheet, room_origin, false, room_colliders);
+	
+		for (RoomEnemySpawn const &spawn : layout.enemies)
+		{
+			const float chance = spawn.chance;
+			if (chance == 0.0f)	continue;
+
+
+			if (chance < 1.0f)
+			{
+				std::bernoulli_distribution should_spawn(chance);
+
+				if (!should_spawn(proc_gen.gen)) continue;
+			}
+
+			enemy_spawns.push_back({spawn.type,	(room_origin + spawn.feet_px) / PPU	+ glm::vec2(0.0f, 0.5f)});
+		}
+
+		glm::vec3 offset(room_origin, 0.0f);
+
+		for (AABB const &hazard : layout.hazards)
+		{
+			death_zones.push_back({(hazard.min + offset) / PPU, (hazard.max + offset) / PPU});
+		}
+
 	}
+	
 }

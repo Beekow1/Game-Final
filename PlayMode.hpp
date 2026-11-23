@@ -11,7 +11,7 @@
 #include "SpriteSheet.hpp"
 
 #include "ProcGen.hpp"
-#include "RoomTemplate.hpp"
+#include "RoomLayout.hpp"
 
 #include "load_save_png.hpp"
 #include "Light.hpp"
@@ -32,7 +32,7 @@ struct PlayMode : Mode
 	virtual bool handle_event(SDL_Event const &, glm::uvec2 const &window_size) override;
 	virtual void update(float elapsed) override;
 	virtual void draw(glm::uvec2 const &drawable_size) override;
-	void drawChunk(RoomTemplate template_room, glm::vec2 room_origin);
+	void drawChunk(RoomLayout const &layout, glm::vec2 room_origin, int doors);
 
 	//----- game state -----
 
@@ -47,7 +47,13 @@ struct PlayMode : Mode
 	bool use_tutorial = false;
 	glm::vec2 room_size = glm::vec2(0.0f); // camera clamp bounds
 	glm::vec2 spawn_pos = glm::vec2(0.0f); // player center
-	std::vector<glm::vec2> dummy_spawns;   // enemy centers
+	struct WorldEnemySpawn
+	{
+		EnemyType type;
+		glm::vec2 position;
+	};
+
+	std::vector<WorldEnemySpawn> enemy_spawns;
 	bool player_dead = false;
 
 	// death zones
