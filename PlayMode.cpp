@@ -307,7 +307,7 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 	lighting_program = load_lighting_program();
 	glGenVertexArrays(1, &lighting_vao);
 
-	if (DebugShopStart) // DEBUG
+	if constexpr (DebugShopStart) // DEBUG
 	{
 		use_tutorial = false;
 		static bool debug_given = false; // only on the first floor, not every floor
@@ -320,7 +320,6 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 		}
 	}
 
-	// must come after any debug money/items so the floor snapshot includes them
 	GameManager::Get().startFloor();
 
 	colliders.reserve(128);
@@ -429,10 +428,13 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 
 		void_y = lowest / PPU - 2.0f;
 
-		if (DebugShopStart && shop_interior) // DEBUG: spawn on the shop floor, left of the entry shaft
+		if constexpr (DebugShopStart) // DEBUG: spawn on the shop floor, left of the entry shaft
 		{
-			// shop_interior->min is shop origin + (80, 64) px -> spawn at origin + (200, 72) px (center, feet on y=64)
-			spawn_pos = glm::vec2(shop_interior->min) + glm::vec2(120.0f, 8.0f) / PPU;
+			if (shop_interior)
+			{
+				// shop_interior->min is shop origin + (80, 64) px -> spawn at origin + (200, 72) px (center, feet on y=64)
+				spawn_pos = glm::vec2(shop_interior->min) + glm::vec2(120.0f, 8.0f) / PPU;
+			}
 		}
 	}
 
@@ -817,6 +819,11 @@ void PlayMode::update(float elapsed)
 	}
 
 	processExplosions();
+
+	// replaced enemy erase statement and moved outside of loop
+	// because it would cause a bug when the dummy died
+	std::erase_if(enemies, [](auto const &e)
+				  { return e->state == EnemyState::Dead; });
 
 	if (exit_zone && checkCollision(player.collider.getWorldSpaceAABB(), *exit_zone))
 	{
