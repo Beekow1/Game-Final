@@ -112,7 +112,8 @@ struct PlayMode : Mode
 	// game render settings
 	static constexpr int PixelWidth = 480;
 	static constexpr int PixelHeight = 270;
-	static constexpr int MAX_LIGHT_BLOCKERS = 32;
+	static constexpr int MAX_LIGHTS = 8;
+	static constexpr int MAX_LIGHT_BLOCKERS = 128;
 	static constexpr float PPU = 16.0f;
 
 	SpriteAnimator player_anim;
@@ -135,6 +136,9 @@ struct PlayMode : Mode
 	float dead_zone_x = 0.5f;
 	float dead_zone_y = 3.0f;
 	float pull_strength = 4.0f;
+
+	std::vector<Light> room_lights;
+	void addRoomLights(RoomLayout const &layout, glm::vec2 origin_px);
 
 	GLuint fbo = 0;
 	GLuint color_texture = 0;

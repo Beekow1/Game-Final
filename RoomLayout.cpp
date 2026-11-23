@@ -34,12 +34,20 @@ RoomLayout load_room_layout(std::string const &path, SpriteSheet const *sheet)
         for (uint32_t x = 0; x < layout.size_px.x; x++)
         {
             glm::u8vec4 &c = pixels[y * layout.size_px.x + x];
+            if (c.a == 255 && c.r == 255 && c.g == 255 && c.b == 255)
+            {
+                layout.light_px.emplace_back(float(x) + 0.5f, float(y) + 0.5f);
+
+                c = glm::u8vec4(0);
+                continue;
+            }
 
             if (c.a == 255 && c.r == 255 && c.g >= 1 && c.g <= 15)
             {
                 layout.enemies.push_back({EnemyType::Rat, glm::vec2(float(x), float(y) - 8.0f), RatSpawnChance});
 
                 c = glm::u8vec4(0);
+                continue;
             }
         }
     }

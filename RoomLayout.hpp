@@ -32,6 +32,8 @@ struct RoomLayout
 
     glm::vec2 keeper_px = glm::vec2(0.0f);
 
+    std::vector<glm::vec2> light_px;
+
     bool has_spawn = false;
     bool has_exit = false;
 };

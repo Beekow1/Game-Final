@@ -54,7 +54,7 @@ Load<SpriteSheet> dummy_sheet(LoadTagDefault, []() -> SpriteSheet const *
 																					   }); });
 
 Load<SpriteSheet> blocker_sheet(LoadTagDefault, []() -> SpriteSheet const *
-								{ return new SpriteSheet(data_path("Default Room Blocker-Sheet.png"), SpriteSheet::Info{
+								{ return new SpriteSheet(data_path("sprites/room-blockers.png"), SpriteSheet::Info{
 																										  .cell_size = glm::uvec2(512, 512),
 																										  .rows = {
 																											  {"Left", 1, 1.0f, false},
@@ -101,8 +101,12 @@ Load<SpriteSheet> platform_sheet(LoadTagDefault, []() -> SpriteSheet const *
 								 { return load_static_image("Platform.png", glm::uvec2(128, 86)); });
 
 // dictates how big the room is in addition to roomscale in gen_params
-Load<SpriteSheet> default_room_sheet(LoadTagDefault, []() -> SpriteSheet const *
-									 { return load_static_image("Default Room Layout.png", glm::uvec2(512, 512)); });
+Load<SpriteSheet> room_1_sheet(LoadTagDefault, []() -> SpriteSheet const *
+									 { return load_static_image("sprites/room-1.png", glm::uvec2(512, 512)); });
+Load<SpriteSheet> room_2_sheet(LoadTagDefault, []() -> SpriteSheet const *
+									 { return load_static_image("sprites/room-2.png", glm::uvec2(512, 512)); });
+Load<SpriteSheet> room_3_sheet(LoadTagDefault, []() -> SpriteSheet const *
+									 { return load_static_image("sprites/room-3.png", glm::uvec2(512, 512)); });
 
 Load<SpriteSheet> shop_room_sheet(LoadTagDefault, []() -> SpriteSheet const *
 	{ return load_static_image("sprites/shop-room.png", glm::uvec2(512, 512)); });
@@ -150,6 +154,7 @@ void PlayMode::buildShop(glm::vec2 origin_px)
 		throw std::runtime_error("shop-layout.png needs exactly 6 item markers."); // can be changed later 
 	}
 	addLevelSprite(*shop_room_sheet, origin_px, false, shop.solids);
+	addRoomLights(shop, origin_px);
 
 	for(size_t i = 0; i < shop.item_px.size(); i++)
 	{
@@ -193,6 +198,22 @@ void PlayMode::respawn()
 	player_dead = false;
 }
 
+void PlayMode::addRoomLights(RoomLayout const &layout, glm::vec2 origin_px)
+{
+    for (glm::vec2 const &position_px : layout.light_px)
+    {
+        Light light;
+
+        light.position = (origin_px + position_px) / PPU;
+        light.color = glm::vec3(1.0f);
+        light.radius = 8.0f;
+        light.intensity = 1.0f;
+        light.do_march = true;
+
+        room_lights.push_back(light);
+    }
+}
+
 PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sheet, "Idle")
 {
 	lighting_program = load_lighting_program();
@@ -229,6 +250,7 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 	{
 		RoomLayout tutorial = load_room_layout(data_path("sprites/tutorial-layout.png"));
 		addLevelSprite(*tutorial_sheet, glm::vec2(0.0f), false, tutorial.solids);
+		addRoomLights(tutorial, glm::vec2(0.0f));
 
 		glm::vec2 exit_feet = tutorial.exit_px / PPU; 
 		exit_zone = AABB{glm::vec3(exit_feet.x - 0.5f, exit_feet.y, 0.0f),
@@ -251,7 +273,11 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 	}
 	else
 	{ // room generation
-		std::vector<RoomLayout> layouts = {load_room_layout(data_path("sprites/default-layout.png"), &*default_room_sheet)};
+		std::vector<RoomLayout> layouts = {
+			load_room_layout(data_path("sprites/room-1-layout.png"), &*room_1_sheet),
+			load_room_layout(data_path("sprites/room-2-layout.png"), &*room_2_sheet),
+			load_room_layout(data_path("sprites/room-3-layout.png"), &*room_3_sheet)
+		};
 
 		proc_gen.params.room_scale = 512.0f;
 		proc_gen.generateLevel();
@@ -769,8 +795,36 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 		glm::vec2 offset = screen_center - cam_pos_ppu;
 
-		glm::vec2 light_px = player_light.position * PPU + offset;
-		float radius_px = player_light.radius * PPU;
+		std::vector<Light> vis_lights;
+
+		for (Light const &light : room_lights)
+		{
+			glm::vec2 position_px = light.position * PPU + offset;
+			float radius_px = light.radius * PPU;
+
+			// check if in screen bounds
+			if (position_px.x + radius_px < 0.0f || position_px.y + radius_px < 0.0f || position_px.x - radius_px > float(fbo_w) || position_px.y - radius_px > float(fbo_h))
+			{
+				continue;
+			}
+
+			vis_lights.push_back(light);
+		}
+		std::sort(
+			vis_lights.begin(),
+			vis_lights.end(),
+			[&](Light const &a, Light const &b)
+			{
+				return glm::length(a.position - cam_pos) < glm::length(b.position - cam_pos);
+			}
+		);
+		std::vector<Light> active_lights;
+		const std::size_t light_count = std::min(vis_lights.size(),	static_cast<std::size_t>(MAX_LIGHTS));
+
+		for (std::size_t i = 0; i < light_count; ++i)
+		{
+			active_lights.emplace_back(vis_lights[i]);
+		}
 
 		std::vector<glm::vec4> light_blockers;
 		
@@ -783,14 +837,21 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			
 			float delta = glm::distance(box_center, glm::vec2(player_light.position));
 
-			if (delta > (player_light.radius * 1.2f) + glm::length(glm::vec2(box.max) - glm::vec2(box.min))/2.0f) {
-				continue;
+			for (Light const &light : active_lights)
+			{
+				if (delta <= (light.radius * 1.2f) + glm::length(glm::vec2(box.max) - glm::vec2(box.min))/2.0f) {
+					glm::vec2 min_px = glm::vec2(box.min) * PPU + offset;
+					glm::vec2 max_px = glm::vec2(box.max) * PPU + offset;
+
+					if (light_blockers.size() >= size_t(MAX_LIGHT_BLOCKERS))
+					{
+						break;
+					}
+
+					light_blockers.emplace_back(min_px, max_px);
+					break;
+				}
 			}
-
-			glm::vec2 min_px = glm::vec2(box.min) * PPU + offset;
-			glm::vec2 max_px = glm::vec2(box.max) * PPU + offset;
-
-			light_blockers.emplace_back(min_px, max_px);
 		}
 
 		glUseProgram(lighting_program);
@@ -806,32 +867,34 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			glm::value_ptr(light_blockers.front())
 		);
 
-		glUniform1i(glGetUniformLocation(lighting_program, "LIGHT_COUNT"), 1);
+		glUniform1i(glGetUniformLocation(lighting_program, "LIGHT_COUNT"), static_cast<GLint>(active_lights.size()));
 
-		glUniform2fv(
-			glGetUniformLocation(lighting_program, "LIGHTS[0].position"),
-			1, glm::value_ptr(light_px)
-		);
+		for (size_t i = 0; i < active_lights.size(); ++i)
+		{
+			Light const &light = active_lights[i];
 
-		glUniform3fv(
-			glGetUniformLocation(lighting_program, "LIGHTS[0].color"),
-			1, glm::value_ptr(player_light.color)
-		);
+			glm::vec2 position_px = light.position * PPU + offset;
 
-		glUniform1f(
-			glGetUniformLocation(lighting_program, "LIGHTS[0].radius"),
-			radius_px
-		);
+			glUniform2fv(
+				glGetUniformLocation(lighting_program, ("LIGHTS[" + std::to_string(i) + "]." + "position").c_str()),
+				1, glm::value_ptr(position_px));
 
-		glUniform1f(
-			glGetUniformLocation(lighting_program, "LIGHTS[0].intensity"),
-			player_light.intensity
-		);
+			glUniform3fv(
+				glGetUniformLocation(lighting_program, ("LIGHTS[" + std::to_string(i) + "]." + "color").c_str()),
+				1, glm::value_ptr(light.color));
 
-		glUniform1i(
-			glGetUniformLocation(lighting_program, "LIGHTS[0].do_march"),
-			player_light.do_march ? 1 : 0
-		);
+			glUniform1f(
+				glGetUniformLocation(lighting_program, ("LIGHTS[" + std::to_string(i) + "]." + "radius").c_str()),
+				light.radius * PPU);
+
+			glUniform1f(
+				glGetUniformLocation(lighting_program, ("LIGHTS[" + std::to_string(i) + "]." + "intensity").c_str()),
+				light.intensity);
+
+			glUniform1i(
+				glGetUniformLocation(lighting_program, ("LIGHTS[" + std::to_string(i) + "]." + "do_march").c_str()),
+				light.do_march ? 1 : 0);
+		}
 
 		glDisable(GL_DEPTH_TEST);
 		glEnable(GL_FRAMEBUFFER_SRGB);
@@ -1087,7 +1150,8 @@ void PlayMode::drawChunk(RoomLayout const &layout, glm::vec2 room_origin, int do
 			room_colliders.push_back({glm::vec3(240.0f, 496.0f, 0.0f), glm::vec3(272.0f, 512.0f, 0.0f)});
 
 		addLevelSprite(*layout.sheet, room_origin, false, room_colliders);
-	
+		addRoomLights(layout, room_origin);
+
 		for (RoomEnemySpawn const &spawn : layout.enemies)
 		{
 			const float chance = spawn.chance;

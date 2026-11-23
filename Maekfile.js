@@ -129,7 +129,7 @@ if (maek.OS === 'windows') {
 	copies.push( maek.COPY(`${NEST_LIBS}/SDL3/dist/SDL3.dll`, `scenes/SDL3.dll`) );
 }
 
-const sprite_names = [ 'main-character', 'Dummy' , 'tutorial-layout', 'tutorial-room', 'shop-layout', 'shop-room', 'default-layout']; // TODO: replace with the actual character or other sprite names
+const sprite_names = [ 'main-character', 'Dummy' , 'tutorial-layout', 'tutorial-room', 'shop-layout', 'shop-room', 'room-1-layout', 'room-2-layout', 'room-3-layout', 'room-1', 'room-2', 'room-3', 'room-blockers']; // TODO: replace with the actual character or other sprite names
 const sprites = sprite_names.map(name => maek.COPY(`sprites/${name}.png`, `dist/sprites/${name}.png`));
 
 
