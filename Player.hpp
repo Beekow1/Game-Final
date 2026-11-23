@@ -5,6 +5,7 @@
 #include "Juice.hpp"
 #include "Enemy.hpp"
 #include "StyleMeter.hpp"
+#include "Sounds.hpp"
 
 enum class TechState
 {
@@ -109,6 +110,9 @@ struct Player
     float coyote_timer = 0.0f;
     float elapsed_move_lock_timer = 0.0f;
     float move_lock_time = 0.0f;
+
+    float move_sfx_time = 0.37f;
+    float move_sfx_timer = 0.0f;
 
     void move(glm::vec2 input_dir, float elapsed);
 

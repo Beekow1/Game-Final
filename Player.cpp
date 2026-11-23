@@ -8,10 +8,20 @@ void Player::move(glm::vec2 input_dir, float elapsed)
     {
         return;
     }
-    
+
     if(input_dir.x != 0.0f)
     {
         last_move = input_dir.x;
+        if (is_grounded)
+        {
+            move_sfx_timer -= elapsed;
+        }
+    }
+
+    if (move_sfx_timer < 0.0f)
+    {
+        Sound::play_3D(*step_sample, 0.3f, transform->position);
+        move_sfx_timer = move_sfx_time;
     }
 
     float target_speed = input_dir.x * run_speed;
@@ -90,6 +100,8 @@ void Player::attemptJump()
         jump_not_wasted = false;
         jump_buffer_timer = 0.0f;
         coyote_timer = 0.0f;
+
+        Sound::play_3D(*jump_sample, 0.3f, transform->position);
 
         if ((latest_dash_dir.y < 0.0f && std::abs(latest_dash_dir.x) > 0.0f) && in_tech && dash_started_airborne)
         {
@@ -201,6 +213,7 @@ void Player::dash(glm::vec2 input_dir)
     tech_timer = dash_time + dash_tech_grace;
     lockMovement(dash_time);
     tech_state = TechState::Dashing;
+    Sound::play_3D(*dash_sample, 0.3f, transform->position);
 
     cur_dash_count--;
 
@@ -268,6 +281,7 @@ void Player::lockMovement(float s)
 
 void Player::dashBounce()
 {
+    Sound::play_3D(*attack_hit_sample, 0.3f, transform->position);
     switch (tech_state)
     {
         case TechState::Dashing:
