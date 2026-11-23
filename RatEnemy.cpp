@@ -1,6 +1,6 @@
 #include "RatEnemy.hpp"
 
-RatEnemy::RatEnemy(glm::vec2 enemy_position, SpriteSheet const &sheet) : Enemy(EnemyType::Rat, enemy_position, sheet)
+RatEnemy::RatEnemy(glm::vec2 enemy_position, SpriteSheet const &sheet, bool explosive) : Enemy(explosive ? EnemyType::ExplodingRat : EnemyType::Rat, enemy_position, sheet)
 {
     health = 25;
     contact_damage = 1;

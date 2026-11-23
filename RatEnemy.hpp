@@ -4,9 +4,7 @@
 
 struct RatEnemy : public Enemy
 {
-    explicit RatEnemy(glm::vec2 enemy_position, SpriteSheet const &sheet);
-
-    bool explodesOnContact = false;
+    explicit RatEnemy(glm::vec2 enemy_position, SpriteSheet const &sheet, bool explosive = false);
 private:
     void updateBehavior(float dt, const std::vector<Collider> &col_list) override;
 

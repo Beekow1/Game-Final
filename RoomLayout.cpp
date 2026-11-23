@@ -9,6 +9,7 @@ RoomLayout load_room_layout(std::string const &path, SpriteSheet const *sheet)
 {
     constexpr uint32_t Tile = 16;
     constexpr float RatSpawnChance = 0.65f;
+    constexpr float ExplodingRatSpawnChance = 0.35f;
     //constexpr float GhostSpawnChance = 0.75f;
 
     enum class TileKind
@@ -42,7 +43,14 @@ RoomLayout load_room_layout(std::string const &path, SpriteSheet const *sheet)
                 continue;
             }
 
-            if (c.a == 255 && c.r == 255 && c.g >= 1 && c.g <= 15)
+            if (c.a == 255 && c.r == 255 && c.g == 2 && c.b == 0)
+            {
+                layout.enemies.push_back({EnemyType::ExplodingRat, glm::vec2(float(x), float(y) - 8.0f), ExplodingRatSpawnChance});
+
+                c = glm::u8vec4(0);
+                continue;
+            }
+            else if (c.a == 255 && c.r == 255 && c.g >= 1 && c.g <= 15) // general case
             {
                 layout.enemies.push_back({EnemyType::Rat, glm::vec2(float(x), float(y) - 8.0f), RatSpawnChance});
 

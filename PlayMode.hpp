@@ -116,6 +116,16 @@ struct PlayMode : Mode
 	float radRadius() const { return RadBaseRadius + RadRadiusPerStack * float(std::max(0, radStacks() - 1)); }
 	int radDamage() const { return RadDamagePerStack * radStacks(); }
 
+	struct ExplosionVFX
+	{
+		glm::vec2 position; 
+		float age = 0.0f;
+	};
+
+	std::vector<ExplosionVFX> explosions;
+
+	void processExplosions();
+
 	struct StaticSprite
 	{
 		SpriteSheet const *sheet = nullptr;
