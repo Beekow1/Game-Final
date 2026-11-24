@@ -388,19 +388,24 @@ int Player::calculateDamage()
     {
         case TechState::Wave_Dashing:
         {
-            return (int)std::ceil(dash_damage * 1.5f);
+            return (int)std::ceil(dash_damage * 2.0f);
         }
 
         case TechState::Dash_Jumping:
         {
-            return (int)std::ceil(dash_damage * 1.25f);
+            return (int)std::ceil(dash_damage * 1.35f);
         }
 
         case TechState::Super_Dash_Jumping:
         {
-            return (int)std::ceil(dash_damage * 1.35f);
+            return (int)std::ceil(dash_damage * 1.5f);
         }
 
+        case TechState::Pre_Super_Jumping:
+        {
+            return (int)std::ceil(dash_damage * 2.0f);
+        }
+        
         default:
         {
             return dash_damage;
@@ -472,6 +477,7 @@ bool Player::takeDamage(int amount, glm::vec2 damage_source)
     jump_state = JumpState::Jumping;
 
     i_timer = std::max(i_timer, hit_i_frame_time);
+    Sound::play(*player_damage_sample, 0.3f);
 
     lockMovement(damage_control_lock);
     

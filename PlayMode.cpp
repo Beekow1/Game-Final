@@ -35,7 +35,16 @@ Load<Sound::Sample> jump_sample(LoadTagDefault, []() -> Sound::Sample const *
 								{ return new Sound::Sample(data_path("Jump.wav")); });
 Load<Sound::Sample> step_sample(LoadTagDefault, []() -> Sound::Sample const *
 								{ return new Sound::Sample(data_path("Step.wav")); });
-								Load<Sound::Sample> music_sample(LoadTagDefault, []() -> Sound::Sample const *
+
+Load<Sound::Sample> ghost_dash_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("GhostDash.wav")); });
+Load<Sound::Sample> player_damage_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("PlayerHit.wav")); });
+Load<Sound::Sample> ghost_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("Ghost.wav")); });
+Load<Sound::Sample> rat_squeak_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("RatSqueak.wav")); });
+Load<Sound::Sample> music_sample(LoadTagDefault, []() -> Sound::Sample const *
 								{ return new Sound::Sample(data_path("Track01_Ambient.opus")); });
 Load<Sound::Sample> item_acquire_sample(LoadTagDefault, []() -> Sound::Sample const *
 								{ return new Sound::Sample(data_path("ItemAcquire.wav")); });
@@ -213,7 +222,8 @@ static const std::vector<TutorialSign> tutorial_signs = {
 	{glm::vec2(7.0f, 9.5f), 1.0f, "SPACE : JUMP"},
 	{glm::vec2(13.0f, 12.0f), 1.0f, "HOLD SPACE TO JUMP HIGHER"},
 	{glm::vec2(36.0f, 12.5f), 1.0f, "DASH (J) INTO ENEMIES TO HIT THEM"},
-	{glm::vec2(50.0f, 8.2f), 1.0f, "WAVEDASH: S + A/D + J ON THE GROUND, THEN SPACE"},
+	{glm::vec2(48.0f, 8.2f), 1.0f, "DASHJUMP: A/D + J ON THE GROUND, THEN SPACE"},
+	{glm::vec2(54.0f, 11.0f), 1.0f, "YOU CAN STILL DASH IN THE AIR"},
 	{glm::vec2(86.1f, 7.4f), 1.0f, "EXIT"},
 };
 
@@ -915,7 +925,7 @@ void PlayMode::update(float elapsed)
 		}
 	}
 
-	if ((total_time > 15.0f * proc_gen.active_rooms.size()) && !ghost_spawned && !use_tutorial)
+	if ((total_time > 12.0f * proc_gen.active_rooms.size()) && !ghost_spawned && !use_tutorial)
 	{
 		ghost_spawned = true;
 		enemies.emplace_back(std::make_unique<GhostEnemy>(player.transform->position + glm::vec3(25.0f, 25.0f, 0.0f), *ghost_sheet));
@@ -1074,14 +1084,15 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		Light player_light{
 			.position = glm::vec2(player.transform->position),
 			.color = glm::vec3(1.0f, 0.75f, 0.45f),
-			.radius = 12.0f,
-			.intensity = 1.4f,
+			.radius = 9.0f,
+			.intensity = 0.7f,
 			.do_march = true,
 		};
 
 		glm::vec2 offset = screen_center - cam_pos_ppu;
 
 		std::vector<Light> vis_lights;
+		vis_lights.push_back(player_light);
 
 		for (Light const &light : room_lights)
 		{
@@ -1217,8 +1228,6 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 		glDisable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-
 	}
 
 	{

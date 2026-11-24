@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Enemy.hpp"
+#include "Sounds.hpp"
 
 struct GhostEnemy : public Enemy
 {
@@ -20,4 +21,8 @@ private:
     float dash_duration = 0.4f;
     float dash_duration_d = 0.0f;
     bool is_dashing = false;
+
+    bool dash_played = false;
+
+    std::shared_ptr<Sound::PlayingSample> ghost_loop;
 };

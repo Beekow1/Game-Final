@@ -21,6 +21,7 @@ GhostEnemy::GhostEnemy(glm::vec2 enemy_position, SpriteSheet const &sheet) : Ene
 
     collider.local_aabb.min = glm::vec3(-0.5f, -0.5f, 0.0f);
     collider.local_aabb.max = glm::vec3(0.5f, 0.5f, 0.0f);
+    ghost_loop = Sound::loop(*ghost_sample, 0.0f);
 
     collider.layer = CollisionLayer::Ghost;
     collider.collision_mask = static_cast<std::uint32_t>(CollisionLayer::Player);
@@ -37,6 +38,12 @@ void GhostEnemy::updateBehavior(float dt, const std::vector<Collider> &col_list)
 
     glm::vec2 to_player = glm::vec2(player_pos - transform.position);
     bool windup = false;
+
+    if (ghost_loop && !ghost_loop->stopped && glm::length(to_player) > 0.05f)
+    {
+        ghost_loop->set_volume(glm::min((0.3f / glm::length(to_player)), 0.4f));
+    }   
+
     if (is_dashing)
     {
         dash_duration_d -= dt;
@@ -68,10 +75,16 @@ void GhostEnemy::updateBehavior(float dt, const std::vector<Collider> &col_list)
                 dash_duration_d = dash_duration;
                 chase_dir = dir;
                 velocity = chase_dir * dash_speed;
+                if (!dash_played)
+                {
+                    dash_played = true; 
+                    Sound::play(*ghost_dash_sample, 0.5f);
+                }
             }
             else if (dash_wait_d <= dash_wait * 0.1f)
             {
                 windup = true;
+                dash_played = false; 
                 velocity = glm::vec2(0.0f);
             }
             else
@@ -104,5 +117,10 @@ void GhostEnemy::updateBehavior(float dt, const std::vector<Collider> &col_list)
         {
             anim.play("Idle");
         }
+    }
+
+    if (glm::length(to_player) < 0.05f)
+    {
+        ghost_loop->set_volume(0.0f);
     }
 }
