@@ -52,6 +52,10 @@ bool RatBoss::canMove(int direction, float dt, const std::vector<Collider> &col_
         wall_probe.max.x = body.min.x;
     }
 
+    // floor check so charge doesn't bug the boss: must be AFTER the probe is moved ahead,
+    // so this is the point the boss is about to step onto (not its current edge)
+    float lead_x = direction > 0 ? wall_probe.max.x : wall_probe.min.x;
+
     bool isSafe = false;
     bool willBeGrounded = false;
     for (Collider const &obstacle : col_list)
@@ -67,13 +71,15 @@ bool RatBoss::canMove(int direction, float dt, const std::vector<Collider> &col_
         if (checkCollision(wall_probe, terrain))
             return false;
 
-        if (ground_x >= terrain.min.x && ground_x <= terrain.max.x && terrain.max.y >= body.min.y - 0.03f && terrain.max.y <= body.min.y + 0.01f)
-        {
+        bool floor_level = terrain.max.y >= body.min.y - 0.03f && terrain.max.y <= body.min.y + 0.01f;
+        if (!floor_level)
+            continue;
+
+        if (ground_x >= terrain.min.x && ground_x <= terrain.max.x)
             willBeGrounded = true;
-            isSafe = isSafe ||
-                     wall_probe.min.x >= terrain.min.x &&
-                         wall_probe.max.x <= terrain.max.x;
-        }
+
+        if (lead_x >= terrain.min.x && lead_x <= terrain.max.x)
+            isSafe = true;
     }
 
     return isSafe && willBeGrounded;
@@ -129,6 +135,7 @@ void RatBoss::updateBehavior(float dt, const std::vector<Collider> &col_list)
             ++charges_since_summon;
 
             dash_wait_d = dash_wait;
+            contact_damage = 1; // charge damage only while charging
             anim.play("Idle", true);
         }
         else

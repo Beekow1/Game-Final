@@ -179,6 +179,10 @@ Load<SpriteSheet> room_3_sheet(LoadTagDefault, []() -> SpriteSheet const *
 Load<SpriteSheet> shop_room_sheet(LoadTagDefault, []() -> SpriteSheet const *
 	{ return load_static_image("sprites/shop-room.png", glm::uvec2(512, 512)); });
 
+// TODO: replace with textured boss room art (sprites/boss-room-1.png); the layout itself is drawn as a placeholder for now
+Load<SpriteSheet> boss_room_sheet(LoadTagDefault, []() -> SpriteSheet const *
+	{ return load_static_image("sprites/boss-room-layout-1.png", glm::uvec2(512, 512)); });
+
 static GLuint load_lighting_program() {
     std::ifstream vert_file(data_path("Raymarch.vert"));
     std::ifstream frag_file(data_path("Raymarch.frag"));
@@ -425,6 +429,7 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 			load_room_layout(data_path("sprites/room-2-layout.png"), &*room_2_sheet),
 			load_room_layout(data_path("sprites/room-3-layout.png"), &*room_3_sheet)
 		};
+		RoomLayout boss_layout = load_room_layout(data_path("sprites/boss-room-layout-1.png"), &*boss_room_sheet);
 
 		proc_gen.params.room_scale = 512.0f;
 		proc_gen.generateLevel();
@@ -444,7 +449,7 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 			}
 
 			int pick = proc_gen.getRand(0, int(layouts.size()) - 1);
-			RoomLayout const &layout = layouts[pick];
+			RoomLayout const &layout = (room->kind == RoomKind::End) ? boss_layout : layouts[pick];
 
 			drawChunk(layout, glm::vec2(room->world_x, room->world_y), room->doors);
 
@@ -454,12 +459,19 @@ PlayMode::PlayMode(bool tut) : use_tutorial(tut), player_anim(*main_character_sh
 				spawn_pos = (glm::vec2(room->world_x, room->world_y) + local_center) / PPU;
 			}
 
-			if (room->kind == RoomKind::End)
+			if (room->kind == RoomKind::End) // boss room
 			{
+				glm::vec2 origin = glm::vec2(room->world_x, room->world_y);
 				glm::vec2 local_feet = layout.has_exit ? layout.exit_px : glm::vec2(176.0f, 48.0f);
-				glm::vec2 feet = (glm::vec2(room->world_x, room->world_y) + local_feet) / PPU;
+				glm::vec2 feet = (origin + local_feet) / PPU;
+				float half_w = std::max(0.5f, 0.5f * layout.exit_size_px.x / PPU);
+				float height = std::max(2.0f, layout.exit_size_px.y / PPU);
 
-				exit_zone = AABB{glm::vec3(feet.x - 0.5f, feet.y, 0.0f), glm::vec3(feet.x + 0.5f, feet.y + 2.0f, 0.0f)};
+				exit_zone = AABB{glm::vec3(feet.x - half_w, feet.y, 0.0f), glm::vec3(feet.x + half_w, feet.y + height, 0.0f)};
+
+				// camera lock: the arena in boss-room-layout-1 is px (16,48)-(496,240) -- 480 wide = exactly one screen
+				boss_interior = AABB{glm::vec3((origin + glm::vec2(16.0f, 48.0f)) / PPU, 0.0f),
+									 glm::vec3((origin + glm::vec2(496.0f, 240.0f)) / PPU, 0.0f)};
 			}
 		}
 
@@ -702,9 +714,11 @@ void PlayMode::update(float elapsed)
 		if (music_loop) music_loop->set_volume(in_shop ? 0.0f : MusicVolume, MusicFade);
 		if (shop_loop)  shop_loop->set_volume(in_shop ? ShopMusicVolume : 0.0f, MusicFade);
 	}
-	if (in_shop)
+	bool in_boss_room = boss_interior && checkCollision(player.collider.getWorldSpaceAABB(), *boss_interior);
+	if (in_shop || in_boss_room)
 	{
-		glm::vec2 center = glm::vec2(shop_interior->min + shop_interior->max) * 0.5f;
+		AABB const &lock = in_shop ? *shop_interior : *boss_interior;
+		glm::vec2 center = glm::vec2(lock.min + lock.max) * 0.5f;
 		cam_pos = glm::mix(glm::vec2(camera->transform->position), center, 1.0f - std::exp(-8.0f * elapsed));
 	}
 
@@ -894,7 +908,7 @@ void PlayMode::update(float elapsed)
 			Mode::set_current(std::make_shared<PlayMode>(false));
 			return;
 		}
-		else if (GameManager::Get().quotaMet())
+		else if (exitOpen())
 		{
 			Mode::set_current(std::make_shared<PlayMode>(false)); // next floor
 			return; 
@@ -1329,11 +1343,10 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 							glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
 							glm::u8vec4(255, 255, 255, 255));
 
-		// TODO: REPLACE WITH END ROOM LAYOUT 
-		// temporary placeholder marker
+		// boss room exit marker (TODO: replace the box with door art)
 		if (exit_zone && !use_tutorial)
 		{
-			bool open = GameManager::Get().quotaMet();
+			bool open = exitOpen();
 			glm::vec3 c = (exit_zone->min + exit_zone->max) * 0.5f;
 			glm::vec3 half = (exit_zone->max - exit_zone->min) * 0.5f;
 			glm::u8vec4 col = open ? glm::u8vec4(120, 255, 140, 255) : glm::u8vec4(220, 80, 80, 255);
@@ -1341,7 +1354,9 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			lines.draw_box(glm::translate(glm::mat4(1.0f), c) * glm::scale(glm::mat4(1.0f), half), col);
 
 			auto [killed, needed] = GameManager::Get().getEnemiesKilledStats();
-			std::string label = open ? "EXIT" : "KILL " + std::to_string(needed - killed) + " MORE";
+			std::string label = open ? "EXIT"
+				: bossAlive() ? "DEFEAT THE BOSS"
+				: "KILL " + std::to_string(needed - killed) + " MORE";
 			float size = 0.5f;
 			lines.draw_text(label,
 				glm::vec3(c.x - 0.2f * size * float(label.size()), exit_zone->max.y + 0.3f, 0.0f),

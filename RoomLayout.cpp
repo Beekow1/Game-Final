@@ -70,6 +70,10 @@ RoomLayout load_room_layout(std::string const &path, SpriteSheet const *sheet)
     uint32_t tiles_x = layout.size_px.x / Tile;
     uint32_t tiles_y = layout.size_px.y / Tile;
 
+    // bounding box of all blue exit tiles (so a 2x2 exit becomes one exit, not four)
+    glm::vec2 exit_min = glm::vec2(0.0f);
+    glm::vec2 exit_max = glm::vec2(0.0f);
+
     for (uint32_t ty = 0; ty < tiles_y; ty++)
     {
         TileKind run_kind = TileKind::Empty;
@@ -117,9 +121,16 @@ RoomLayout load_room_layout(std::string const &path, SpriteSheet const *sheet)
                 { // magenta (255, 0, 255) = shopkeeper / npc spawn
                     layout.keeper_px = feet;
                 }
+                else if (c.r == 128 && c.g == 0 && c.b == 255)
+                { // purple (128, 0, 255) = rat boss spawn (one boss per tile)
+                    layout.enemies.push_back({EnemyType::RatBoss, feet, 1.0f});
+                }
                 else if (c.r == 0 && c.g == 0 && c.b == 255)
-                { // blue (0, 0, 255) = exit door
-                    layout.exit_px = feet;
+                { // blue (0, 0, 255) = exit door (may span several tiles)
+                    glm::vec2 tile_min = glm::vec2(float(tx * Tile), float(ty * Tile));
+                    glm::vec2 tile_max = tile_min + glm::vec2(float(Tile));
+                    exit_min = layout.has_exit ? glm::min(exit_min, tile_min) : tile_min;
+                    exit_max = layout.has_exit ? glm::max(exit_max, tile_max) : tile_max;
                     layout.has_exit = true;
                 }
                 else
@@ -141,6 +152,12 @@ RoomLayout load_room_layout(std::string const &path, SpriteSheet const *sheet)
                 run_start = tx;
             }
         }
+    }
+
+    if (layout.has_exit)
+    {
+        layout.exit_px = glm::vec2(0.5f * (exit_min.x + exit_max.x), exit_min.y); // bottom-center
+        layout.exit_size_px = exit_max - exit_min;
     }
 
     // aabb vertical merge

@@ -21,6 +21,7 @@
 #include <glm/glm.hpp>
 
 #include <vector>
+#include <algorithm>
 #include <deque>
 #include <optional>
 #include <ranges>
@@ -90,7 +91,16 @@ struct PlayMode : Mode
 	void buildShop(glm::vec2 origin_px);
 
 	// exit door
-	std::optional<AABB> exit_zone; // world units, empty = no exit 
+	std::optional<AABB> exit_zone; // world units, empty = no exit
+
+	// boss room
+	std::optional<AABB> boss_interior; // world units, camera lock while inside
+	bool bossAlive() const
+	{
+		return std::any_of(enemies.begin(), enemies.end(), [](auto const &e)
+						   { return e->is_boss && e->state != EnemyState::Dead; });
+	}
+	bool exitOpen() const { return GameManager::Get().quotaMet() && !bossAlive(); }
 
 	void respawn();
 

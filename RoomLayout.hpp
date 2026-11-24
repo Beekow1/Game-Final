@@ -25,7 +25,8 @@ struct RoomLayout
     std::vector<AABB> hazards;
 
     glm::vec2 spawn_px = glm::vec2(0.0f);
-    glm::vec2 exit_px = glm::vec2(0.0f);
+    glm::vec2 exit_px = glm::vec2(0.0f);      // bottom-center of the blue exit marker (any size, e.g. 1x1 or 2x2 tiles)
+    glm::vec2 exit_size_px = glm::vec2(0.0f); // size of the blue exit marker
 
     std::vector<RoomEnemySpawn> enemies;
     std::vector<glm::vec2> item_px;
