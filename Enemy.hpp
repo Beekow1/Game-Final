@@ -10,6 +10,7 @@ enum class EnemyType : uint8_t
     Rat = 1,
     ExplodingRat = 2,
     Ghost = 3,
+    RatBoss = 4,
 };
 
 enum class EnemyState : uint8_t
@@ -45,6 +46,8 @@ struct Enemy
     SpriteAnimator anim;
     bool facing_left = false;
 
+    bool is_boss = false;
+    
     void update(float dt, const std::vector<Collider> &col_list);
     void setBehaviorState(EnemyState new_state);
     void takeDamage(int amount, float coin_mult);

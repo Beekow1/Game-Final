@@ -18,7 +18,7 @@ Enemy::Enemy(EnemyType enemy_type, glm::vec2 enemy_position, SpriteSheet const &
 
 void Enemy::update(float dt, const std::vector<Collider> &col_list)
 {
-    if (state == EnemyState::Dead)
+    if (state == EnemyState::Dead || dt <= 0.0f)
         return;
 
     updateBehavior(dt, col_list);
@@ -64,7 +64,7 @@ void Enemy::update(float dt, const std::vector<Collider> &col_list)
             velocity.y = 0.0f;
         }
     }
-    if (anim.finished && enemyType != EnemyType::Ghost)
+    if (anim.finished && enemyType != EnemyType::Ghost && !is_boss)
         anim.play("Idle");
     anim.update(dt);
 }

@@ -18,6 +18,7 @@
 #include "DummyEnemy.hpp"
 #include "RatEnemy.hpp"
 #include "GhostEnemy.hpp"
+#include "RatBoss.hpp"
 
 #include "Juice.hpp"
 
@@ -93,6 +94,17 @@ Load<SpriteSheet> ghost_sheet(LoadTagDefault, []() -> SpriteSheet const *
 																								{"Charge", 3, 12.0f, false},
 																								{"Dash", 3, 7.5f, false},
 																								{"Hurt", 3, 12.0f, false},
+																						   },
+																					   }); });
+
+Load<SpriteSheet> rat_boss_sheet(LoadTagDefault, []() -> SpriteSheet const *
+							  { return new SpriteSheet(data_path("sprites/Rat Boss.png"), SpriteSheet::Info{
+																						   .cell_size = glm::uvec2(48, 48),
+																						   .rows = {
+																								{"Idle", 4, 8.0f, true},
+																								{"ChargeWindup", 3, 5.0f, false},
+																								{"Charge", 3, 8.5f, false},
+																								{"Summon", 4, 6.0f, false},
 																						   },
 																					   }); });
 
@@ -293,6 +305,10 @@ void PlayMode::respawn()
 		else if (spawn.type == EnemyType::ExplodingRat)
 		{
 			enemies.emplace_back(std::make_unique<RatEnemy>(spawn.position,	*exploding_rat_sheet, true));
+		}
+		else if (spawn.type == EnemyType::RatBoss)
+		{
+			enemies.emplace_back(std::make_unique<RatBoss>(spawn.position, *rat_boss_sheet));
 		}
 	}
 
@@ -789,9 +805,33 @@ void PlayMode::update(float elapsed)
 	}
 	player_anim.update(elapsed);
 
+	std::vector<glm::vec2> rat_spawns;
+
 	for (auto const &enemy : enemies)
 	{
 		enemy->update(elapsed, colliders);
+		if (enemy->enemyType != EnemyType::RatBoss || enemy->state == EnemyState::Dead)
+		{
+			continue;
+		}
+
+		RatBoss &boss = static_cast<RatBoss &>(*enemy);
+		if (boss.do_summon)
+		{
+			boss.do_summon = false;
+
+			glm::vec2 position = glm::vec2(boss.transform.position);
+
+			rat_spawns.push_back(position + glm::vec2(-1.5f, 0.0f));
+			rat_spawns.push_back(position + glm::vec2(1.5f, 0.0f));
+		}
+	}
+	
+	std::bernoulli_distribution exploding(0.3f);
+	for (glm::vec2 const &position : rat_spawns)
+	{
+		bool is_exploding = exploding(proc_gen.gen);
+		enemies.emplace_back(std::make_unique<RatEnemy>(position, is_exploding ? *exploding_rat_sheet : *rat_sheet, is_exploding));
 	}
 
 	if (radStacks() > 0 && player.health > 0 && (rad_timer += elapsed) >= 1.0f)
@@ -1047,7 +1087,17 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			vis_lights.push_back(Light{ .position = glm::vec2(player.transform->position),
 				.color = glm::vec3(0.4f, 1.0f, 0.3f), .radius = radRadius(),
 				.intensity = 0.8f + 0.2f * std::sin(anim_time * 4.0f), .do_march = true });
-
+		
+		for(ExplosionVFX &explosion : explosions){
+			Light light{
+				.position = explosion.position,
+				.color = glm::vec3(1.0f, 0.45f, 0.1f),
+				.radius = 6.0f,
+				.intensity = 2.5f,
+				.do_march = true
+			};
+			vis_lights.emplace_back(light);
+		}
 		std::sort(
 			vis_lights.begin(),
 			vis_lights.end(),
@@ -1056,8 +1106,8 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 				return glm::length(a.position - cam_pos) < glm::length(b.position - cam_pos);
 			}
 		);
-		std::vector<Light> active_lights;
-		const std::size_t light_count = std::min(vis_lights.size(),	static_cast<std::size_t>(MAX_LIGHTS));
+		std::vector<Light> active_lights{player_light};
+		const std::size_t light_count = std::min(vis_lights.size(), static_cast<std::size_t>(MAX_LIGHTS)-1);
 
 		for (std::size_t i = 0; i < light_count; ++i)
 		{
