@@ -181,7 +181,7 @@ Load<SpriteSheet> shop_room_sheet(LoadTagDefault, []() -> SpriteSheet const *
 
 // TODO: replace with textured boss room art (sprites/boss-room-1.png); the layout itself is drawn as a placeholder for now
 Load<SpriteSheet> boss_room_sheet(LoadTagDefault, []() -> SpriteSheet const *
-	{ return load_static_image("sprites/boss-room-layout-1.png", glm::uvec2(512, 512)); });
+	{ return load_static_image("sprites/boss-room-1.png", glm::uvec2(512, 512)); });
 
 static GLuint load_lighting_program() {
     std::ifstream vert_file(data_path("Raymarch.vert"));

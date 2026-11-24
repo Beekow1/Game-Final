@@ -136,7 +136,7 @@ const sprite_names = [ 'main-character', 'Dummy' , 'Ghost-Sheet', 'Rat Boss',
 					   'room-1-layout', 'room-2-layout', 'room-3-layout', 
 					   'room-1', 'room-2', 'room-3', 'room-blockers',
 					   'item-icons', 'MiniMap',
-					   'boss-room-layout-1'];
+					   'boss-room-layout-1', 'boss-room-1'];
 
 const sprites = sprite_names.map(name => maek.COPY(`sprites/${name}.png`, `dist/sprites/${name}.png`));
 
