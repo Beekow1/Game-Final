@@ -20,7 +20,7 @@ void Player::move(glm::vec2 input_dir, float elapsed)
 
     if (move_sfx_timer < 0.0f)
     {
-        Sound::play_3D(*step_sample, 0.3f, transform->position);
+        Sound::play(*step_sample, 0.3f);
         move_sfx_timer = move_sfx_time;
     }
 
@@ -103,7 +103,7 @@ void Player::attemptJump()
         jump_buffer_timer = 0.0f;
         coyote_timer = 0.0f;
 
-        Sound::play_3D(*jump_sample, 0.3f, transform->position);
+        Sound::play(*jump_sample, 0.3f);
 
         if ((latest_dash_dir.y < 0.0f && std::abs(latest_dash_dir.x) > 0.0f) && in_tech && dash_started_airborne)
         {
@@ -180,7 +180,7 @@ void Player::attemptJump()
         jump_buffer_timer = 0.0f;
         velocity.y = jump_force * air_jump_mult;
         jump_state = JumpState::Jumping; // so jump-cut still works
-        Sound::play_3D(*jump_sample, 0.3f, transform->position);
+        Sound::play(*jump_sample, 0.3f);
     }
 }
 
@@ -224,7 +224,7 @@ void Player::dash(glm::vec2 input_dir)
     tech_timer = dash_time + dash_tech_grace;
     lockMovement(dash_time);
     tech_state = TechState::Dashing;
-    Sound::play_3D(*dash_sample, 0.3f, transform->position);
+    Sound::play(*dash_sample, 0.3f);
 
     cur_dash_count--;
 
@@ -292,7 +292,7 @@ void Player::lockMovement(float s)
 
 void Player::dashBounce()
 {
-    Sound::play_3D(*attack_hit_sample, 0.3f, transform->position);
+    Sound::play(*attack_hit_sample, 0.3f);
     switch (tech_state)
     {
         case TechState::Dashing:
