@@ -64,7 +64,7 @@ void Enemy::update(float dt, const std::vector<Collider> &col_list)
             velocity.y = 0.0f;
         }
     }
-    if (anim.finished)
+    if (anim.finished && enemyType != EnemyType::Ghost)
         anim.play("Idle");
     anim.update(dt);
 }

@@ -85,6 +85,17 @@ Load<SpriteSheet> dummy_sheet(LoadTagDefault, []() -> SpriteSheet const *
 																						   },
 																					   }); });
 
+Load<SpriteSheet> ghost_sheet(LoadTagDefault, []() -> SpriteSheet const *
+							  { return new SpriteSheet(data_path("sprites/Ghost-Sheet.png"), SpriteSheet::Info{
+																						   .cell_size = glm::uvec2(24, 48),
+																						   .rows = {
+																								{"Idle", 4, 8.0f, true},
+																								{"Charge", 3, 12.0f, false},
+																								{"Dash", 3, 7.5f, false},
+																								{"Hurt", 3, 12.0f, false},
+																						   },
+																					   }); });
+
 Load<SpriteSheet> blocker_sheet(LoadTagDefault, []() -> SpriteSheet const *
 								{ return new SpriteSheet(data_path("sprites/room-blockers.png"), SpriteSheet::Info{
 																										  .cell_size = glm::uvec2(512, 512),
@@ -853,7 +864,7 @@ void PlayMode::update(float elapsed)
 	if ((total_time > 15.0f * proc_gen.active_rooms.size()) && !ghost_spawned && !use_tutorial)
 	{
 		ghost_spawned = true;
-		enemies.emplace_back(std::make_unique<GhostEnemy>(player.transform->position + glm::vec3(25.0f, 25.0f, 0.0f), *dummy_sheet));
+		enemies.emplace_back(std::make_unique<GhostEnemy>(player.transform->position + glm::vec3(25.0f, 25.0f, 0.0f), *ghost_sheet));
 	}
 
 	// reset button press counters:

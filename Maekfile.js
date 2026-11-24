@@ -130,7 +130,7 @@ if (maek.OS === 'windows') {
 }
 
 // TODO: If adding new art, always place it here.
-const sprite_names = [ 'main-character', 'Dummy' ,
+const sprite_names = [ 'main-character', 'Dummy' , 'Ghost-Sheet',
 					   'tutorial-layout', 'tutorial-room', 
 					   'shop-layout', 'shop-room', 
 					   'room-1-layout', 'room-2-layout', 'room-3-layout', 

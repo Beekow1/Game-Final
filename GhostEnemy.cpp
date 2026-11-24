@@ -36,7 +36,7 @@ void GhostEnemy::updateBehavior(float dt, const std::vector<Collider> &col_list)
     if (player_pos == glm::vec3(0.0f)) { return; }
 
     glm::vec2 to_player = glm::vec2(player_pos - transform.position);
-
+    bool windup = false;
     if (is_dashing)
     {
         dash_duration_d -= dt;
@@ -71,6 +71,7 @@ void GhostEnemy::updateBehavior(float dt, const std::vector<Collider> &col_list)
             }
             else if (dash_wait_d <= dash_wait * 0.1f)
             {
+                windup = true;
                 velocity = glm::vec2(0.0f);
             }
             else
@@ -88,4 +89,20 @@ void GhostEnemy::updateBehavior(float dt, const std::vector<Collider> &col_list)
     }
     
     transform.position += glm::vec3(velocity * dt, 0.0f);
+
+    if (!(anim.sheet.info.rows[anim.row].name == "Hurt") || anim.finished)
+    {
+        if (is_dashing)
+        {
+            anim.play("Dash");
+        }
+        else if (windup)
+        {
+            anim.play("Charge");
+        }
+        else
+        {
+            anim.play("Idle");
+        }
+    }
 }
