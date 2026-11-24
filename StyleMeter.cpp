@@ -16,8 +16,6 @@ void StyleMeter::update(float dt)
     }
 
     style_cur = glm::clamp(style_cur, 0.0f, style_max);
-
-    // std::cout << style_cur << " : " << (int)style_rank << std::endl; // per-frame spam, buries printGrid output
 }
 
 void StyleMeter::addPoints(float x, bool is_grounded, int move)

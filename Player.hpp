@@ -80,6 +80,7 @@ struct Player
     int max_health = 3;
     int health = max_health;
     float i_frame_time = 0.6f; 
+    float hit_i_frame_time = 1.5f;
     float i_timer = 0.0f;
 
     float dash_attack_grace = 0.2f;
@@ -101,6 +102,7 @@ struct Player
     bool jump_not_wasted = false;
     bool is_grounded = false;
     bool is_attacking = false;
+    bool is_hurt_flashing = false;
     JumpState jump_state;
     TechState tech_state;
 

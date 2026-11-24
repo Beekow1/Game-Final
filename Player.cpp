@@ -53,6 +53,8 @@ void Player::updatePlayer(float elapsed)
 
     i_timer = std::max(0.0f, i_timer - elapsed);
 
+    if (i_timer <= 0.0f) { is_hurt_flashing = false; } 
+
     dash_timer = std::max(0.0f, dash_timer - elapsed);
     tech_timer = std::max(0.0f, tech_timer - elapsed);
 
@@ -469,10 +471,14 @@ bool Player::takeDamage(int amount, glm::vec2 damage_source)
 
     jump_state = JumpState::Jumping;
 
+    i_timer = std::max(i_timer, hit_i_frame_time);
+
     lockMovement(damage_control_lock);
     
     Juice::Get().addTrauma(0.8f, 0.35f, -velocity);
     Juice::Get().applyHitStop(0.4f);
+
+    is_hurt_flashing = true;
 
     return true;
 }

@@ -170,6 +170,7 @@ const game_names = [
 	maek.CPP('DummyEnemy.cpp'),
 	maek.CPP('GhostEnemy.cpp'),
 	maek.CPP('StyleMeter.cpp'),
+	maek.CPP('MiniMap.cpp'),
 ];
 
 const common_names = [

@@ -12,6 +12,7 @@
 #include "SpriteSheet.hpp"
 
 #include "ProcGen.hpp"
+#include "MiniMap.hpp"
 #include "RoomLayout.hpp"
 
 #include "load_save_png.hpp"
@@ -23,6 +24,7 @@
 #include <deque>
 #include <optional>
 #include <ranges>
+#include <format>
 
 struct PlayMode : Mode
 {
@@ -98,6 +100,7 @@ struct PlayMode : Mode
 	Player player;
 	ProcGen proc_gen;
 	GenParams gen_params;
+	MiniMap mini_map;
 	float quota = 0.4f;
 
 	float total_time = 0.0f;
