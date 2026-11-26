@@ -32,5 +32,5 @@ struct MiniMap
         return frame;
     }
 
-    void drawMiniMap(DrawSprites &draw_sprites) const;
+    void drawMiniMap(DrawSprites &draw_sprites, DrawSprites &draw_sprites_location, glm::vec3 player_pos) const;
 };

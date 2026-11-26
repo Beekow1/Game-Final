@@ -57,6 +57,7 @@ void Player::updatePlayer(float elapsed)
 
     dash_timer = std::max(0.0f, dash_timer - elapsed);
     tech_timer = std::max(0.0f, tech_timer - elapsed);
+    dash_reset_timer = std::max(0.0f, dash_reset_timer - elapsed);
 
     elapsed_move_lock_timer += elapsed;
     if (elapsed_move_lock_timer < move_lock_time)
@@ -75,7 +76,7 @@ void Player::updatePlayer(float elapsed)
         velocity.y = std::clamp(velocity.y, -dash_end_speed, dash_end_speed);
     }
 
-    is_attacking = is_dashing || tech_state != TechState::Default;
+    is_attacking = is_dashing || tech_state != TechState::Default || tech_timer > 0.0f;
 
     attemptJump();
 
@@ -203,7 +204,8 @@ void Player::jumpArc()
 
 void Player::dash(glm::vec2 input_dir)
 {
-    if (cur_dash_count <= 0)
+    
+    if (cur_dash_count <= 0 || dash_reset_timer > 0.0f)
     {
         return;
     }
@@ -293,6 +295,7 @@ void Player::lockMovement(float s)
 void Player::dashBounce()
 {
     Sound::play(*attack_hit_sample, 0.3f);
+    dash_reset_timer = dash_reset_time;
     switch (tech_state)
     {
         case TechState::Dashing:
@@ -388,22 +391,22 @@ int Player::calculateDamage()
     {
         case TechState::Wave_Dashing:
         {
-            return (int)std::ceil(dash_damage * 2.0f);
+            return (int)std::ceil(dash_damage * 2.0f * style_meter.getMultiplier());
         }
 
         case TechState::Dash_Jumping:
         {
-            return (int)std::ceil(dash_damage * 1.35f);
+            return (int)std::ceil(dash_damage * 1.35f * style_meter.getMultiplier());
         }
 
         case TechState::Super_Dash_Jumping:
         {
-            return (int)std::ceil(dash_damage * 1.5f);
+            return (int)std::ceil(dash_damage * 1.5f * style_meter.getMultiplier());
         }
 
         case TechState::Pre_Super_Jumping:
         {
-            return (int)std::ceil(dash_damage * 2.0f);
+            return (int)std::ceil(dash_damage * 2.0f * style_meter.getMultiplier());
         }
         
         default:

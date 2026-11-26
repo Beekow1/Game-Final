@@ -56,9 +56,12 @@ struct Player
     size_t max_dash_count = 1;
 
     float dash_time = 0.15f;
-    float dash_tech_grace = 0.15f;
+    float dash_tech_grace = 0.1f;
     float dash_timer = 0.0f;
     float tech_timer = 0.0f;
+
+    float dash_reset_time = 0.07f;
+    float dash_reset_timer = 0.00f;
 
     int dash_damage = 17;
     float dash_bounce_speed = 20.0f;

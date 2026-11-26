@@ -7,6 +7,11 @@ struct GhostEnemy : public Enemy
 {
     explicit GhostEnemy(glm::vec2 enemy_position, SpriteSheet const &sheet);
 
+    void ghostDisable() 
+    {
+        ghost_loop->stop();
+    }
+
 private:
     void updateBehavior(float dt, const std::vector<Collider> &col_list) override;
 

@@ -47,7 +47,7 @@ void StyleMeter::smallStylePause()
     style_pause_timer = std::max(style_pause_timer ,small_style_pause);
 }
 
-float StyleMeter::getCoinMultiplier()
+float StyleMeter::getMultiplier()
 {
     switch(style_rank)
     {

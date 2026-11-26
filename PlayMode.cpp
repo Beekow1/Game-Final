@@ -218,12 +218,13 @@ struct TutorialSign
 };
 
 static const std::vector<TutorialSign> tutorial_signs = {
-	{glm::vec2(3.0f, 8.0f), 1.0f, "A / D : MOVE"},
-	{glm::vec2(7.0f, 9.5f), 1.0f, "SPACE : JUMP"},
-	{glm::vec2(13.0f, 12.0f), 1.0f, "HOLD SPACE TO JUMP HIGHER"},
-	{glm::vec2(36.0f, 12.5f), 1.0f, "DASH (J) INTO ENEMIES TO HIT THEM"},
-	{glm::vec2(48.0f, 8.2f), 1.0f, "DASHJUMP: A/D + J ON THE GROUND, THEN SPACE"},
-	{glm::vec2(54.0f, 11.0f), 1.0f, "YOU CAN STILL DASH IN THE AIR"},
+	{glm::vec2(3.0f, 7.0f), 0.9f, "A / D : MOVE"},
+	{glm::vec2(12.f, 10.0f), 0.9f, "SPACE : JUMP"},
+	{glm::vec2(22.0f, 12.5f), 0.9f, "J + MOVE : DASH"},
+	{glm::vec2(37.0f, 12.0f), 0.9f, "MOMENTUM = DAMAGE"},
+	{glm::vec2(37.0f, 10.0f), 0.8f, "EXPERIMENT WITH MOVEMENT"},
+	{glm::vec2(50.0f, 12.0f), 0.9f, "THE FASTER AND BETTER YOU PLAY"},
+	{glm::vec2(50.0f, 10.0f), 0.9f, "THE HIGHER THE DAMAGE AND COIN MULTIPLIER"},
 	{glm::vec2(86.1f, 7.4f), 1.0f, "EXIT"},
 };
 
@@ -284,7 +285,7 @@ void PlayMode::processExplosions()
 				bool enemy_inside_blast = glm::dot(enemy_delta, enemy_delta) <= BlastRadius * BlastRadius;
 
 				if (enemy_inside_blast){
-					target->takeDamage(ExplosionDamage, player.style_meter.getCoinMultiplier());
+					target->takeDamage(ExplosionDamage, player.style_meter.getMultiplier());
 					if (target->state == EnemyState::Dead && target->enemyType == EnemyType::ExplodingRat)
 					{
 						processExplosions();
@@ -866,7 +867,7 @@ void PlayMode::update(float elapsed)
 		int damage = radDamage();
 		for (auto const &e : enemies)
 			if (glm::distance(pp, glm::vec2(e->transform.position)) < radius)
-				e->takeDamage(damage, player.style_meter.getCoinMultiplier());
+				e->takeDamage(damage, player.style_meter.getMultiplier());
 	}
 
 	if (player.health > 0)
@@ -887,13 +888,19 @@ void PlayMode::update(float elapsed)
 			
 			if (player.is_attacking && std::find(player.hit_enemies.begin(), player.hit_enemies.end(), enemy.get()) == player.hit_enemies.end())
 			{
-				enemy->takeDamage(player.calculateDamage(), player.style_meter.getCoinMultiplier());
+				enemy->takeDamage(player.calculateDamage(), player.style_meter.getMultiplier());
 				player.dashBounce();
 				player.hit_enemies.push_back(enemy.get());
 				break;
 			}
 			else if (player.takeDamage(enemy->contact_damage, glm::vec2(enemy->transform.position)))
 			{
+				if (enemy->enemyType == EnemyType::Ghost)
+				{
+					GhostEnemy* ghost = static_cast<GhostEnemy*>(enemy.get());
+					ghost->ghostDisable();
+				}
+
 				if (enemy->enemyType == EnemyType::ExplodingRat)
 				{
 					enemy->takeDamage(enemy->health, 0.0f);
@@ -925,7 +932,7 @@ void PlayMode::update(float elapsed)
 		}
 	}
 
-	if ((total_time > 12.0f * proc_gen.active_rooms.size()) && !ghost_spawned && !use_tutorial)
+	if ((total_time > 15.0f * proc_gen.active_rooms.size()) && !ghost_spawned && !use_tutorial)
 	{
 		ghost_spawned = true;
 		enemies.emplace_back(std::make_unique<GhostEnemy>(player.transform->position + glm::vec3(25.0f, 25.0f, 0.0f), *ghost_sheet));
@@ -1045,19 +1052,6 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		}
 	}
 
-	{
-		const float minimap_scale = 1.75f;
-
-		const glm::mat4 hud_to_clip =
-			proj * glm::scale(glm::mat4(1.0f), glm::vec3(minimap_scale, minimap_scale, 1.0f));
-
-		mini_map.origin = glm::vec2(fbo_w / minimap_scale - 90.0f, fbo_h / minimap_scale - 90.0f);
-
-		DrawSprites sprites(*minimap_sheet, hud_to_clip);
-		mini_map.setMiniMapActiveRooms(proc_gen.active_rooms);
-		mini_map.drawMiniMap(sprites);
-	}
-
 	{ // enemies
 		for (auto const &e : enemies)
 		{
@@ -1090,6 +1084,18 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		};
 
 		glm::vec2 offset = screen_center - cam_pos_ppu;
+
+		if (player.is_attacking) 
+		{
+			player_light.radius = 2.0f;
+			player_light.color = glm::vec3(1.0f, 0.0f, 0.0f);
+		}
+		else
+		{
+			player_light.radius = 9.0f;
+			player_light.color = glm::vec3(1.0f, 0.75f, 0.45f);
+		}
+
 
 		std::vector<Light> vis_lights;
 		vis_lights.push_back(player_light);
@@ -1230,8 +1236,47 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 
+	float scale_x = (float)drawable_size.x / PixelWidth;
+	float scale_y = (float)drawable_size.y / PixelHeight;
+
+	glm::vec2 exact_px = (glm::vec2(camera->transform->position) + camera->shake_extra_pos) * PPU;
+	glm::vec2 frac = exact_px - cam_pos_ppu;
+
+	GLint offset_x = static_cast<GLint>(std::floor(frac.x * scale_x));
+	GLint offset_y = static_cast<GLint>(std::floor(frac.y * scale_y));
+
+	GLint dst_w = (GLint)std::lround(fbo_w * scale_x);
+	GLint dst_h = (GLint)std::lround(fbo_h * scale_y);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glDrawBuffer(GL_BACK);
+	glViewport(0, 0, drawable_size.x, drawable_size.y);
+
+	glDisable(GL_FRAMEBUFFER_SRGB);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+	glReadBuffer(GL_COLOR_ATTACHMENT0);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+	glBlitFramebuffer(0, 0, fbo_w, fbo_h,
+					  -offset_x, -offset_y, dst_w - offset_x, dst_h - offset_y,
+					  GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glEnable(GL_FRAMEBUFFER_SRGB);
+
 	{
-		DrawLines lines(world_to_clip);
+		const glm::mat4 screen_proj = glm::ortho(0.0f, (float)PixelWidth, 0.0f, (float)PixelHeight);
+		glm::vec2 exact_cam_px = (glm::vec2(camera->transform->position) + camera->shake_extra_pos) * PPU;
+		glm::mat4 smooth_view = glm::translate(glm::mat4(1.0f), glm::vec3(screen_center - exact_cam_px, 0.0f));
+
+		const glm::mat4 smooth_view_proj = screen_proj * smooth_view;
+		const glm::mat4 world_to_clip_smooth = smooth_view_proj *
+										glm::scale(glm::mat4(1.0f), glm::vec3(PPU, PPU, 1.0f));
+		DrawLines lines(world_to_clip_smooth);
 
 		if (pickup_timer > 0.0f)
 		{
@@ -1292,6 +1337,9 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			if (enemy->state == EnemyState::Dead)
 				continue;
 
+			if (enemy->enemyType == EnemyType::Ghost)
+				continue;
+
 			AABB world_enemy_aabb = enemy->collider.getWorldSpaceAABB();
 
 			glm::vec3 enemy_center = (world_enemy_aabb.min + world_enemy_aabb.max) * 0.5f;
@@ -1304,8 +1352,8 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			lines.draw_text(
 				std::to_string(enemy->health),
 				glm::vec3(world_enemy_aabb.min.x, world_enemy_aabb.max.y + 0.2f, 0.0f),
-				glm::vec3(0.3f, 0.0f, 0.0f),
-				glm::vec3(0.0f, 0.3f, 0.0f),
+				glm::vec3(0.5f, 0.0f, 0.0f),
+				glm::vec3(0.0f, 0.5f, 0.0f),
 				glm::u8vec4(255, 255, 255, 255));
 		}
 
@@ -1315,7 +1363,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			if (s.sold) continue;
 			std::string price = std::to_string(s.price);
 			bool affordable = GameManager::Get().getMoney() >= s.price;
-			float size = 0.5f;
+			float size = 0.85f;
 			lines.draw_text(price,
 				glm::vec3(s.pos.x - 0.2f * size * float(price.size()), s.pos.y - 0.6f, 0.0f),
 				glm::vec3(size, 0.0f, 0.0f), glm::vec3(0.0f, size, 0.0f),
@@ -1335,20 +1383,23 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 				glm::u8vec4(220, 80, 80, 255));
 		}
 
-		auto [enemies_killed, quota_enemies] = GameManager::Get().getEnemiesKilledStats();
-		lines.draw_text(std::to_string(enemies_killed) + " / " + std::to_string(quota_enemies),
+		if (!use_tutorial)
+		{
+			auto [enemies_killed, quota_enemies] = GameManager::Get().getEnemiesKilledStats();
+			lines.draw_text("QUOTA: " + std::to_string(enemies_killed) + " / " + std::to_string(quota_enemies),
 							glm::vec3(cam_pos.x - 10.0f, cam_pos.y + 6.5f, 0.0f),
 							glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
 							glm::u8vec4(255, 255, 255, 255));
+		}
 
-		lines.draw_text(std::format("{:.2f}", player.style_meter.getCoinMultiplier()) + "x  " + std::format("{:.2f}", player.style_meter.style_cur),
+		lines.draw_text(std::format("{:.2f}", player.style_meter.getMultiplier()) + "x  " + std::format("{:.2f}", player.style_meter.style_cur),
 					glm::vec3(cam_pos.x - 13.0f, cam_pos.y - 6.5f, 0.0f),
 					glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
 					glm::u8vec4(255, 255, 255, 255));
 
 
-		lines.draw_text(std::to_string(GameManager::Get().getMoney()) + " MONEY",
-							glm::vec3(cam_pos.x + 10.0f, cam_pos.y + 6.5f, 0.0f),
+		lines.draw_text(std::to_string(GameManager::Get().getMoney()) + "$",
+							glm::vec3(cam_pos.x + 12.0f, cam_pos.y + 6.5f, 0.0f),
 							glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
 							glm::u8vec4(255, 255, 255, 255));
 
@@ -1376,44 +1427,28 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		if (player_dead)
 		{
 			lines.draw_text("PRESS R TO RESTART",
-							glm::vec3(cam_pos.x - 3.0f, cam_pos.y + 2.0f, 0.0f),
+							glm::vec3(cam_pos.x - 5.0f, cam_pos.y + 2.0f, 0.0f),
 							glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
 							glm::u8vec4(255, 255, 255, 255));
 		}
+
+		{
+			const float minimap_scale = 1.75f;
+
+			const glm::mat4 hud_to_clip_map =
+				proj * glm::scale(glm::mat4(1.0f), glm::vec3(minimap_scale, minimap_scale, 1.0f));
+
+			const glm::mat4 hud_to_clip_loc =
+				proj * glm::scale(glm::mat4(1.0f), glm::vec3(0.9f, 0.9f, 1.0f));
+
+			mini_map.origin = glm::vec2(fbo_w / minimap_scale - 90.0f, fbo_h / minimap_scale - 90.0f);
+
+			DrawSprites sprite_map_location(*heart_sheet, hud_to_clip_loc);
+			DrawSprites sprites(*minimap_sheet, hud_to_clip_map);
+			mini_map.setMiniMapActiveRooms(proc_gen.active_rooms);
+			mini_map.drawMiniMap(sprites, sprite_map_location, player.transform->position);
+		}
 	}
-
-
-	float scale_x = (float)drawable_size.x / PixelWidth;
-	float scale_y = (float)drawable_size.y / PixelHeight;
-
-	glm::vec2 exact_px = (glm::vec2(camera->transform->position) + camera->shake_extra_pos) * PPU;
-	glm::vec2 frac = exact_px - cam_pos_ppu;
-
-	GLint offset_x = static_cast<GLint>(std::floor(frac.x * scale_x));
-	GLint offset_y = static_cast<GLint>(std::floor(frac.y * scale_y));
-
-	GLint dst_w = (GLint)std::lround(fbo_w * scale_x);
-	GLint dst_h = (GLint)std::lround(fbo_h * scale_y);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glDrawBuffer(GL_BACK);
-	glViewport(0, 0, drawable_size.x, drawable_size.y);
-
-	glDisable(GL_FRAMEBUFFER_SRGB);
-
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-	glReadBuffer(GL_COLOR_ATTACHMENT0);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-
-	glBlitFramebuffer(0, 0, fbo_w, fbo_h,
-					  -offset_x, -offset_y, dst_w - offset_x, dst_h - offset_y,
-					  GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glEnable(GL_FRAMEBUFFER_SRGB);
 
 	{ // HUD: fixed screen coordinates.
 		const glm::mat4 ui_proj = glm::ortho(0.0f, static_cast<float>(PixelWidth), 0.0f, static_cast<float>(PixelHeight));
